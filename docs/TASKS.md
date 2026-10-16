@@ -1,6 +1,6 @@
 # Tarefas de Implementação — Projeto 3 (Backend Node.js & TypeScript)
 
-- [ ] **Tarefa 1: Setup da Aplicação e Servidor Base**
+- [x] **Tarefa 1: Setup da Aplicação e Servidor Base**
   - Inicializar projeto Node.js com TypeScript, `tsx`/`ts-node` e framework web (Fastify ou Express).
   - Configurar `tsconfig.json` com `strict: true` e `noUncheckedIndexedAccess: true`.
   - Configurar Vitest para testes automatizados.
