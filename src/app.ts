@@ -1,14 +1,20 @@
 import Fastify, { FastifyInstance, FastifyServerOptions } from 'fastify';
 import { potencialConstrutivoRoutes } from './routes/potencial-construtivo.routes.js';
+import { concorrenciaRoutes } from './routes/concorrencia.routes.js';
+import { WorkerPool } from './workers/worker-pool.js';
 
-export interface BuildAppOptions extends FastifyServerOptions {}
+export interface BuildAppOptions extends FastifyServerOptions {
+  workerPool?: WorkerPool;
+}
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
+  const { workerPool, ...fastifyOptions } = options;
+
   const app = Fastify({
     logger: {
       level: process.env['LOG_LEVEL'] ?? 'info',
     },
-    ...options,
+    ...fastifyOptions,
   });
 
   // Base Healthcheck Route
@@ -22,6 +28,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   // Rotas de Domínio Urbanístico
   app.register(potencialConstrutivoRoutes);
+
+  // Rotas do Experimento do Event Loop (Tarefa 3)
+  app.register(concorrenciaRoutes, { workerPool });
 
   return app;
 }

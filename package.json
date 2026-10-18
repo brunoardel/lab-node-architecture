@@ -10,7 +10,8 @@
     "start": "node dist/src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo:event-loop": "tsx scripts/demo-event-loop.ts"
   },
   "keywords": [
     "nodejs",

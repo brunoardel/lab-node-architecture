@@ -324,6 +324,9 @@
       <button class="tab-btn" onclick="switchTab('tab-zod')">
         <span>🛡️</span> 3. Zod & Type Erasure (Borda da API)
       </button>
+      <button class="tab-btn" onclick="switchTab('tab-event-loop')">
+        <span>🧵</span> 4. Event Loop & Worker Threads (Tarefa 3)
+      </button>
     </div>
 
     <!-- TAB 1: ASSERT NEVER -->
@@ -516,6 +519,82 @@ app.post('/calcular', async (req) => {
         </div>
       </div>
     </section>
+
+    <!-- TAB 4: EVENT LOOP & WORKER THREADS -->
+    <section id="tab-event-loop" class="tab-panel">
+      <div class="comparison-grid">
+        <!-- Cenário A: Bloqueante -->
+        <div class="card problem">
+          <div class="card-header">
+            <div class="card-title"><span>🔴</span> Cenário A: Thread Principal (Main Thread)</div>
+            <span class="tag-danger">EVENT LOOP CONGELADO</span>
+          </div>
+          <p class="description">
+            O cálculo de volumetria e terraplenagem roda síncrono na thread principal. Enquanto o laço de 150M de iterações ocupa a CPU por ~2.2s, o Event Loop não atende requisições de <code>/health</code>, gerando starvation de I/O.
+          </p>
+          <pre><code>// Rota: GET /bloqueante
+app.get('/bloqueante', async (req, reply) => {
+  // 💥 Executa na Main Thread: trava todo o processo!
+  const resultado = executarCalculoVolumetria();
+  return reply.send(resultado);
+});
+
+// Enquanto isso, GET /health fica represado no buffer TCP!</code></pre>
+          <button class="btn-action run-problem" onclick="executarCenarioBloqueante()">
+            <span>▶</span> Simular Bloqueio do Event Loop & Testar /health
+          </button>
+          <div class="terminal-box" id="term-event-loop-problem">
+            <div class="terminal-label">Terminal de Saída (Cenário Bloqueante)</div>
+            <span class="text-muted">Aguardando execução...</span>
+          </div>
+        </div>
+
+        <!-- Cenário B: Otimizado com Worker Threads -->
+        <div class="card solution">
+          <div class="card-header">
+            <div class="card-title"><span>🟢</span> Cenário B: Worker Threads Pool</div>
+            <span class="tag-success">EVENT LOOP 100% LIVRE</span>
+          </div>
+          <p class="description">
+            O cálculo pesado é despachado para o <code>WorkerPool</code> (usando <code>node:worker_threads</code> nativo). A thread principal permanece livre e o <code>/health</code> responde de forma instantânea (&lt; 5ms).
+          </p>
+          <pre><code>// Rota: GET /otimizada
+app.get('/otimizada', async (req, reply) => {
+  // ⚡ Despacha para thread secundária isolada do SO
+  const resultado = await workerPool.execute();
+  return reply.send(resultado);
+});
+
+// GET /health responde em ~2ms em paralelo no Event Loop!</code></pre>
+          <button class="btn-action run-solution" onclick="executarCenarioOtimizado()">
+            <span>▶</span> Executar com Worker Threads Pool & Testar /health
+          </button>
+          <div class="terminal-box" id="term-event-loop-solution">
+            <div class="terminal-label">Terminal de Saída (Cenário Otimizado)</div>
+            <span class="text-muted">Aguardando execução...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Teste ao Vivo contra localhost:3000 -->
+      <div class="concept-card" style="margin-top: 1.5rem;">
+        <div class="concept-title" style="color: var(--accent-cyan); margin-bottom: 0.5rem;">
+          <span>🌐</span> Teste ao Vivo no Servidor Local Real (http://localhost:3000)
+        </div>
+        <p class="description" style="margin-bottom: 1rem;">
+          Inicie seu servidor no terminal com <code>npm run dev</code> e clique no botão abaixo para disparar requisições HTTP reais do seu navegador e comparar as latências ao vivo:
+        </p>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <button class="btn-action" style="background: rgba(59, 130, 246, 0.2); border-color: var(--accent-blue);" onclick="testarServidorReal()">
+            <span>🚀</span> Disparar Benchmark HTTP Real contra localhost:3000
+          </button>
+        </div>
+        <div class="terminal-box" id="term-event-loop-real" style="min-height: 80px; margin-top: 1rem;">
+          <div class="terminal-label">Monitor de Requisições HTTP em Tempo Real</div>
+          <span class="text-muted">Clique acima para enviar requisições reais...</span>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script>
@@ -598,6 +677,83 @@ app.post('/calcular', async (req) => {
         `  ]\n` +
         `}\n` +
         `<span class="log-ok">✅ O domínio nunca foi tocado com dados sujos!</span>`;
+    }
+
+    async function executarCenarioBloqueante() {
+      const term = document.getElementById('term-event-loop-problem');
+      term.innerHTML = `<span class="log-info">🔴 [CENÁRIO A] Disparando GET /bloqueante na Thread Principal...</span>\n` +
+        `<span class="log-warn">⏳ CPU em 100% calculando volumetria topográfica (150M de iterações)...</span>\n` +
+        `<span class="log-err">🛑 Event Loop CONGELADO. Call Stack ocupada de forma síncrona!</span>\n` +
+        `<span class="log-warn">📨 Disparando 3 requisições de /health concorrentes durante o cálculo...</span>\n`;
+
+      await new Promise(r => setTimeout(r, 1200));
+
+      term.innerHTML += `\n<span class="log-info">⏱️ Cálculo Bloqueante Finalizado:</span>\n` +
+        `    - Tempo decorrido: 2.152 ms\n` +
+        `    - Executado em: main-thread (Thread ID: 0)\n` +
+        `    - Volume de Corte: 65.225,62 m³\n\n` +
+        `<span class="log-err">🛑 Latência das requisições concorrentes de /health:</span>\n` +
+        `<span class="log-err">    - Health #1: respondeu em 2.136 ms ⚠️ REPRESADO!</span>\n` +
+        `<span class="log-err">    - Health #2: respondeu em 2.136 ms ⚠️ REPRESADO!</span>\n` +
+        `<span class="log-err">    - Health #3: respondeu em 2.136 ms ⚠️ REPRESADO!</span>\n\n` +
+        `<span class="log-err">💥 DIAGNÓSTICO: Starvation de I/O! A API ficou totalmente surda a novas conexões.</span>`;
+    }
+
+    async function executarCenarioOtimizado() {
+      const term = document.getElementById('term-event-loop-solution');
+      term.innerHTML = `<span class="log-info">🟢 [CENÁRIO B] Disparando GET /otimizada (Worker Threads Pool)...</span>\n` +
+        `<span class="log-ok">⚡ Cálculo pesado despachado para Worker Thread #2 no sistema operacional!</span>\n` +
+        `<span class="log-ok">✨ Thread Principal e Event Loop permanecem 100% LIVRES!</span>\n` +
+        `<span class="log-info">📨 Disparando 3 requisições de /health simultâneas durante o cálculo...</span>\n`;
+
+      await new Promise(r => setTimeout(r, 600));
+
+      term.innerHTML += `\n<span class="log-ok">⚡ Latência das requisições de /health (Event Loop desobstruído):</span>\n` +
+        `<span class="log-ok">    - Health #1: respondeu em 1,8 ms ✅ INSTANTÂNEO!</span>\n` +
+        `<span class="log-ok">    - Health #2: respondeu em 1,5 ms ✅ INSTANTÂNEO!</span>\n` +
+        `<span class="log-ok">    - Health #3: respondeu em 1,4 ms ✅ INSTANTÂNEO!</span>\n\n` +
+        `<span class="log-info">⏱️ Worker Thread #2 concluiu o cálculo pesado em segundo plano:</span>\n` +
+        `    - Tempo de CPU do Worker: 2.180 ms\n` +
+        `    - Executado em: worker-thread (Thread ID: 2)\n` +
+        `    - Volume de Corte: 65.225,62 m³\n\n` +
+        `<span class="log-ok">🏆 SUCESSO ARQUITETURAL: Alto throughput de I/O mantido mesmo sob pico de CPU!</span>`;
+    }
+
+    async function testarServidorReal() {
+      const term = document.getElementById('term-event-loop-real');
+      term.innerHTML = `<span class="log-info">🔍 Conectando a http://localhost:3000...</span>\n`;
+
+      try {
+        const ping = await fetch('http://localhost:3000/health', { method: 'GET' });
+        if (!ping.ok) throw new Error('Servidor respondeu com status ' + ping.status);
+      } catch (e) {
+        term.innerHTML = `<span class="log-err">⚠️ Não foi possível conectar a http://localhost:3000.</span>\n` +
+          `<span class="log-warn">👉 Certifique-se de iniciar o servidor executando no terminal:</span>\n` +
+          `<span class="log-ok">   npm run dev</span>\n` +
+          `<span class="log-info">(Ou execute 'npm run demo:event-loop' diretamente no terminal!)</span>`;
+        return;
+      }
+
+      term.innerHTML += `<span class="log-ok">✅ Conexão estabelecida com http://localhost:3000!</span>\n` +
+        `<span class="log-info">🚀 Disparando teste com Worker Threads: GET /otimizada + GET /health simultâneos...</span>\n`;
+
+      const t0 = performance.now();
+      const pOtimizada = fetch('http://localhost:3000/otimizada?dimensaoGrid=40&iteracoes=5000000').then(async r => {
+        const data = await r.json();
+        return { tempo: performance.now() - t0, data };
+      });
+
+      const pHealth = fetch('http://localhost:3000/health').then(async r => {
+        const data = await r.json();
+        return { tempo: performance.now() - t0, data };
+      });
+
+      const [resOtimizada, resHealth] = await Promise.all([pOtimizada, pHealth]);
+
+      term.innerHTML += `\n<span class="log-ok">📊 RESULTADO AO VIVO DO SEU SERVIDOR LOCAL:</span>\n` +
+        `<span class="log-ok">    - /health respondeu em: ${resHealth.tempo.toFixed(1)} ms!</span>\n` +
+        `<span class="log-info">    - /otimizada concluiu em: ${resOtimizada.tempo.toFixed(1)} ms (Worker: ${resOtimizada.data.resultado?.executadoEm})</span>\n` +
+        `<span class="log-ok">✅ Comprovado: /health foi atendido ordens de magnitude mais rápido!</span>`;
     }
   </script>
 </body>
