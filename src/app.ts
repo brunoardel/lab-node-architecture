@@ -1,4 +1,5 @@
 import Fastify, { FastifyInstance, FastifyServerOptions } from 'fastify';
+import { potencialConstrutivoRoutes } from './routes/potencial-construtivo.routes.js';
 
 export interface BuildAppOptions extends FastifyServerOptions {}
 
@@ -19,5 +20,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     });
   });
 
+  // Rotas de Domínio Urbanístico
+  app.register(potencialConstrutivoRoutes);
+
   return app;
 }
+

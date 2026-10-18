@@ -5,7 +5,7 @@
   - Configurar `tsconfig.json` com `strict: true` e `noUncheckedIndexedAccess: true`.
   - Configurar Vitest para testes automatizados.
 
-- [ ] **Tarefa 2: Modelagem de Domínio com Discriminated Unions e Zod**
+- [x] **Tarefa 2: Modelagem de Domínio com Discriminated Unions e Zod**
   - Criar contratos de domínio urbanístico com Discriminated Unions e Branded Types.
   - Implementar o serviço de cálculo com checagem exaustiva (`never`).
   - Implementar validação na rota com schema Zod e testes unitários no Vitest comprovando a quebra em tipos inválidos.

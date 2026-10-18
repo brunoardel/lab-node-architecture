@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laboratório Interativo — Domínio, Tipagem e Arquitetura Node.js</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-secondary: #131c2e;
+      --bg-card: rgba(26, 38, 62, 0.75);
+      --bg-code: #070a12;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(59, 130, 246, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #172554 0%, var(--bg-primary) 70%);
+      color: var(--text-main);
+      min-height: 100vh;
+      line-height: 1.6;
+      padding: 2rem 1.5rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .badge-header {
+      display: inline-block;
+      padding: 0.35rem 0.9rem;
+      border-radius: 9999px;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: var(--accent-cyan);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.8rem;
+    }
+
+    h1 {
+      font-size: 2.3rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 750px;
+      margin: 0 auto;
+    }
+
+    /* Tabs */
+    .nav-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 0.8rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem 1.4rem;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tab-btn:hover {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--text-main);
+      border-color: rgba(59, 130, 246, 0.4);
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      border-color: var(--accent-blue);
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35);
+    }
+
+    /* Section Panels */
+    .tab-panel {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Grid comparison */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .comparison-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card.problem {
+      border-top: 4px solid var(--accent-rose);
+    }
+
+    .card.solution {
+      border-top: 4px solid var(--accent-emerald);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .tag-danger {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--accent-rose);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .tag-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .description {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      margin-bottom: 1.2rem;
+    }
+
+    pre code {
+      display: block;
+      background: var(--bg-code);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 1rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+      margin-bottom: 1.2rem;
+      line-height: 1.5;
+    }
+
+    .btn-action {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.7rem 1.2rem;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      margin-top: auto;
+    }
+
+    .btn-action.run-problem {
+      background: rgba(244, 63, 94, 0.1);
+      border-color: rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+    }
+    .btn-action.run-problem:hover {
+      background: rgba(244, 63, 94, 0.25);
+    }
+
+    .btn-action.run-solution {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+    .btn-action.run-solution:hover {
+      background: rgba(16, 185, 129, 0.25);
+    }
+
+    /* Console terminal output */
+    .terminal-box {
+      background: #030712;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 1rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      min-height: 120px;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-top: 1rem;
+      position: relative;
+    }
+
+    .terminal-label {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.4rem;
+    }
+
+    .log-err { color: #f87171; font-weight: 600; }
+    .log-warn { color: #fbbf24; }
+    .log-ok { color: #34d399; font-weight: 600; }
+    .log-info { color: #38bdf8; }
+
+    /* Concept note */
+    .concept-card {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 1.25rem;
+      margin-top: 1.5rem;
+    }
+
+    .concept-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--accent-cyan);
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge-header">Laboratório de Engenharia de Software</span>
+      <h1>Modelagem de Domínio & Tipagem Estrita</h1>
+      <p class="subtitle">Veja na prática a diferença entre o comportamento frágil do JavaScript puro e as defesas arquiteturais do TypeScript no projeto <code>lab-node-architecture</code>.</p>
+    </header>
+
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('tab-assert-never')">
+        <span>⚡</span> 1. Checagem Exaustiva (assertNever)
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-branded-types')">
+        <span>🏷️</span> 2. Branded Types (Tipagem Nominal)
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-zod')">
+        <span>🛡️</span> 3. Zod & Type Erasure (Borda da API)
+      </button>
+    </div>
+
+    <!-- TAB 1: ASSERT NEVER -->
+    <section id="tab-assert-never" class="tab-panel active">
+      <div class="comparison-grid">
+        <!-- Problema JS -->
+        <div class="card problem">
+          <div class="card-header">
+            <div class="card-title"><span>❌</span> No JavaScript / TS Ingênuo</div>
+            <span class="tag-danger">FALHA SILENCIOSA</span>
+          </div>
+          <p class="description">
+            O desenvolvedor adiciona a regra <code>"rural"</code> no sistema, mas esquece de incluir no <code>switch</code> do motor de cálculo. O JS não reclama, pula silenciosamente e retorna <code>undefined</code>.
+          </p>
+          <pre><code>function calcular(regra, area) {
+  switch (regra.tipo) {
+    case 'residencial': return area * 2.5;
+    case 'comercial':   return area * 3.0;
+    case 'industrial':  return area * 1.5;
+    // Esqueceu 'rural' e não tem assertNever!
+  }
+}
+// Entrada: { tipo: 'rural' }
+// Retorno: undefined!
+// Ao tentar ler retorno.area -> CRASH 500!</code></pre>
+          <button class="btn-action run-problem" onclick="executarProblemaJS()">
+            <span>▶</span> Simular Bug em Produção (JavaScript)
+          </button>
+          <div class="terminal-box" id="term-assert-problem">
+            <div class="terminal-label">Terminal de Saída (Runtime)</div>
+            <span class="text-muted">Aguardando execução...</span>
+          </div>
+        </div>
+
+        <!-- Solução TS -->
+        <div class="card solution">
+          <div class="card-header">
+            <div class="card-title"><span>✅</span> No TypeScript com assertNever</div>
+            <span class="tag-success">BLINDAGEM EM COMPILAÇÃO</span>
+          </div>
+          <p class="description">
+            O bloco <code>default</code> recebe o tipo <code>never</code>. Se uma nova regra existir e não for tratada no <code>switch</code>, o TypeScript <strong>se recusa a compilar o projeto</strong>!
+          </p>
+          <pre><code>function assertNever(x: never): never {
+  throw new Error("Caso não tratado: " + x);
+}
+
+switch (regra.tipo) {
+  case 'residencial': return area * 2.5;
+  case 'comercial':   return area * 3.0;
+  case 'industrial':  return area * 1.5;
+  default:
+    // Se faltou 'rural', regra NÃO é never!
+    // TS2345: Argument of type 'RegraRural' 
+    // is not assignable to parameter of type 'never'!
+    return assertNever(regra);
+}</code></pre>
+          <button class="btn-action run-solution" onclick="executarSolucaoTS()">
+            <span>▶</span> Executar com Proteção assertNever
+          </button>
+          <div class="terminal-box" id="term-assert-solution">
+            <div class="terminal-label">Terminal de Saída (Compilador & Runtime)</div>
+            <span class="text-muted">Aguardando execução...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="concept-card">
+        <div class="concept-title">💡 Por que isso importa na Arquitetura?</div>
+        <p class="description" style="margin-bottom:0">
+          Em sistemas corporativos como a <strong>ArqLab</strong>, regras urbanísticas mudam frequentemente por decretos municipais. Sem <code>assertNever</code>, novos requisitos criam falhas fantasmas que só são descobertas quando o cliente final tenta calcular um projeto e a API quebra. Com <code>assertNever</code>, o compilador atua como auditor obrigatório: o código nem chega a ser publicado se alguém esquecer um caso!
+        </p>
+      </div>
+    </section>
+
+    <!-- TAB 2: BRANDED TYPES -->
+    <section id="tab-branded-types" class="tab-panel">
+      <div class="comparison-grid">
+        <div class="card problem">
+          <div class="card-header">
+            <div class="card-title"><span>❌</span> Tipagem Estrutural (Primitivos)</div>
+            <span class="tag-danger">INVERSÃO DE IDENTIFICADORES</span>
+          </div>
+          <p class="description">
+            No TypeScript comum, <code>type ProjetoId = string</code> e <code>type UsuarioId = string</code> são 100% intercambiáveis (Duck Typing). Se você inverter a ordem dos parâmetros, o compilador aceita sem avisar.
+          </p>
+          <pre><code>function deletar(projId: string, userId: string) {
+  db.delete(projId, userId);
+}
+
+const userId = "user_999";
+const projId = "proj_123";
+
+// Parâmetros invertidos por engano:
+deletar(userId, projId);
+// TypeScript aceita silenciosamente!
+// No banco: deleta o usuário achando que era projeto!</code></pre>
+          <button class="btn-action run-problem" onclick="executarProblemaBranded()">
+            <span>▶</span> Simular Inversão de Parâmetros
+          </button>
+          <div class="terminal-box" id="term-branded-problem">
+            <div class="terminal-label">Terminal de Saída</div>
+            <span class="text-muted">Aguardando execução...</span>
+          </div>
+        </div>
+
+        <div class="card solution">
+          <div class="card-header">
+            <div class="card-title"><span>✅</span> Com Branded Types (Nominais)</div>
+            <span class="tag-success">ERRO EM TEMPO DE CÓDIGO</span>
+          </div>
+          <p class="description">
+            Adicionamos uma "marca" única (ex: <code>& { readonly __brand: 'ProjetoId' }</code>). Agora <code>ProjetoId</code> e <code>UsuarioId</code> são tipos incompatíveis, mesmo ambos sendo strings internamente!
+          </p>
+          <pre><code>type ProjetoId = string & { readonly __brand: 'ProjetoId' };
+type UsuarioId = string & { readonly __brand: 'UsuarioId' };
+
+function deletar(pId: ProjetoId, uId: UsuarioId) { ... }
+
+// Ao tentar inverter:
+deletar(userId, projId);
+// ❌ TS2345: Argument of type 'UsuarioId' is 
+// not assignable to parameter of type 'ProjetoId'.</code></pre>
+          <button class="btn-action run-solution" onclick="executarSolucaoBranded()">
+            <span>▶</span> Executar com Branded Types
+          </button>
+          <div class="terminal-box" id="term-branded-solution">
+            <div class="terminal-label">Terminal de Saída</div>
+            <span class="text-muted">Aguardando execução...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="concept-card">
+        <div class="concept-title">💡 Aplicação em Grandezas Físicas</div>
+        <p class="description" style="margin-bottom:0">
+          O mesmo princípio foi aplicado em <code>MetrosQuadrados</code> e <code>MetrosLineares</code> em nosso domínio. Evita somar uma área (m²) com um recuo frontal (metros lineares) — erro clássico de cálculo em engenharia que o JavaScript/TypeScript comum deixaria passar como uma simples soma de números.
+        </p>
+      </div>
+    </section>
+
+    <!-- TAB 3: ZOD & TYPE ERASURE -->
+    <section id="tab-zod" class="tab-panel">
+      <div class="comparison-grid">
+        <div class="card problem">
+          <div class="card-header">
+            <div class="card-title"><span>❌</span> Ilusão do TypeScript na Borda</div>
+            <span class="tag-danger">TYPE ERASURE EM PRODUÇÃO</span>
+          </div>
+          <p class="description">
+            Em produção, o Node.js executa JavaScript puro. Todas as interfaces e types do TypeScript são apagados (<strong>type erasure</strong>). Se o cliente HTTP enviar campos inválidos ou strings onde deveriam ser números, o Node.js não sabe!
+          </p>
+          <pre><code>// O desenvolvedor acha que a interface protege a rota:
+app.post('/calcular', async (req) => {
+  const dados = req.body as DadosProjetoUrbanistico;
+  // Se o cliente enviar { areaTerreno: "mil" } ou negativo:
+  return dados.areaTerreno * 2; // NaN ou erro!
+});</code></pre>
+          <button class="btn-action run-problem" onclick="executarProblemaZod()">
+            <span>▶</span> Simular Payload Malformado sem Zod
+          </button>
+          <div class="terminal-box" id="term-zod-problem">
+            <div class="terminal-label">Terminal de Saída (Sem Validação)</div>
+            <span class="text-muted">Aguardando execução...</span>
+          </div>
+        </div>
+
+        <div class="card solution">
+          <div class="card-header">
+            <div class="card-title"><span>✅</span> Defesa de Borda com Zod</div>
+            <span class="tag-success">VALIDAÇÃO ATIVA EM RUNTIME</span>
+          </div>
+          <p class="description">
+            O Zod atua na borda da API como a alfândega. Ele valida e sanitiza o payload JSON em tempo de execução, rejeitando dados anômalos com HTTP 400 antes de contaminar as funções de domínio.
+          </p>
+          <pre><code>const schema = z.object({
+  areaTerreno: z.number().positive(),
+  regraZoneamento: z.discriminatedUnion('tipo', [...])
+});
+
+// Se o cliente enviar dados errados:
+// 400 Bad Request: "areaTerreno deve ser maior que zero"</code></pre>
+          <button class="btn-action run-solution" onclick="executarSolucaoZod()">
+            <span>▶</span> Simular Filtro com Schema Zod
+          </button>
+          <div class="terminal-box" id="term-zod-solution">
+            <div class="terminal-label">Terminal de Saída (Com Zod)</div>
+            <span class="text-muted">Aguardando execução...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+      event.currentTarget.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    function executarProblemaJS() {
+      const term = document.getElementById('term-assert-problem');
+      term.innerHTML = `<span class="log-info">[1] Requisição recebida com regra nova: { tipo: 'rural', areaHectares: 10 }</span>\n` +
+        `<span class="log-warn">[2] Entrando na função calcularPotencialSemAssertNever()...</span>\n` +
+        `<span class="log-warn">[3] Switch verificou 'residencial', 'comercial', 'industrial'... NENHUM bateu!</span>\n` +
+        `<span class="log-err">[4] Função retornou: undefined</span>\n\n` +
+        `<span class="log-info">[5] Linha 45: const taxa = resultado.areaConstruivel * 0.05;</span>\n` +
+        `<span class="log-err">💥 UNCAUGHT TYPEERROR: Cannot read properties of undefined (reading 'areaConstruivel')</span>\n` +
+        `<span class="log-err">❌ API caiu ou retornou HTTP 500 para o usuário final!</span>`;
+    }
+
+    function executarSolucaoTS() {
+      const term = document.getElementById('term-assert-solution');
+      term.innerHTML = `<span class="log-info">[1] Verificando integridade com o compilador TypeScript (tsc)...</span>\n` +
+        `<span class="log-warn">🔍 Analisando switch exaustivo no calculo-potencial.service.ts...</span>\n\n` +
+        `<span class="log-err">❌ ERRO DETECTADO EM TEMPO DE COMPILAÇÃO (BUILD FAILED):</span>\n` +
+        `<span class="log-err">src/domain/calculo-potencial.service.ts(75,26): error TS2345:</span>\n` +
+        `<span class="log-err">Argument of type 'RegraRural' is not assignable to parameter of type 'never'.</span>\n\n` +
+        `<span class="log-ok">🛡️ O TypeScript impediu que o código fosse publicado com a falha!</span>\n` +
+        `<span class="log-ok">👉 O desenvolvedor é obrigado a implementar o case 'rural' antes de colocar em produção.</span>`;
+    }
+
+    function executarProblemaBranded() {
+      const term = document.getElementById('term-branded-problem');
+      term.innerHTML = `<span class="log-info">[1] Variáveis criadas:</span>\n` +
+        `    userId = "user_999" (dono da conta)\n` +
+        `    projId = "proj_123" (projeto a ser deletado)\n\n` +
+        `<span class="log-warn">[2] Chamada no código: deletarDoBanco(userId, projId); // Invertido!</span>\n` +
+        `<span class="log-ok">[3] TypeScript: ambos são do tipo 'string'. Compilação aprovada!</span>\n\n` +
+        `<span class="log-err">💥 EXECUTANDO NO BANCO DE DADOS:</span>\n` +
+        `<span class="log-err">    DELETE FROM projetos WHERE id = 'user_999' AND owner_id = 'proj_123';</span>\n` +
+        `<span class="log-err">⚠️ FALHA CRÍTICA: O projeto certo não foi deletado, e causou anomalia no banco!</span>`;
+    }
+
+    function executarSolucaoBranded() {
+      const term = document.getElementById('term-branded-solution');
+      term.innerHTML = `<span class="log-info">[1] Tipos nominais aplicados:</span>\n` +
+        `    userId: UsuarioId  (marca única: [__brand]: 'UsuarioId')\n` +
+        `    projId: ProjetoId  (marca única: [__brand]: 'ProjetoId')\n\n` +
+        `<span class="log-warn">[2] Desenvolvedor tenta digitar: deletarDoBanco(userId, projId);</span>\n\n` +
+        `<span class="log-err">❌ BLOQUEADO PELO TYPESCRIPT NO VS CODE / IDE:</span>\n` +
+        `<span class="log-err">Argument of type 'UsuarioId' is not assignable to parameter of type 'ProjetoId'.</span>\n` +
+        `<span class="log-err">Type 'UsuarioId' is not assignable to type '{ [__brand]: "ProjetoId"; }'</span>\n\n` +
+        `<span class="log-ok">🛡️ Impossível inverter IDs por distração! A arquitetura protege o domínio.</span>`;
+    }
+
+    function executarProblemaZod() {
+      const term = document.getElementById('term-zod-problem');
+      term.innerHTML = `<span class="log-info">[1] Cliente enviou via POST /api/zoneamento/calcular:</span>\n` +
+        `    { areaTerreno: -500, regraZoneamento: { tipo: "rural" } }\n\n` +
+        `<span class="log-warn">[2] Node.js processando em produção (JS puro, sem types)...</span>\n` +
+        `<span class="log-err">[3] Cálculo aceitou área negativa de -500m²!</span>\n` +
+        `<span class="log-err">    areaConstruivelCalculada: -1250 m²</span>\n` +
+        `<span class="log-err">💥 Dados corrompidos foram gravados ou geraram exceção indevida!</span>`;
+    }
+
+    function executarSolucaoZod() {
+      const term = document.getElementById('term-zod-solution');
+      term.innerHTML = `<span class="log-info">[1] Cliente enviou via POST /api/zoneamento/calcular:</span>\n` +
+        `    { areaTerreno: -500, regraZoneamento: { tipo: "rural" } }\n\n` +
+        `<span class="log-warn">[2] Borda Zod interceptou o payload antes de chamar o Domínio!</span>\n\n` +
+        `<span class="log-ok">🛡️ RESPOSTA HTTP 400 BAD REQUEST IMEDIATA:</span>\n` +
+        `<span class="log-info">{\n` +
+        `  "statusCode": 400,\n` +
+        `  "error": "Bad Request",\n` +
+        `  "issues": [\n` +
+        `    { "path": "areaTerreno", "message": "areaTerreno deve ser maior que zero" },\n` +
+        `    { "path": "regraZoneamento.tipo", "message": "Invalid discriminator value. Expected 'residencial' | 'comercial' | 'industrial'" }\n` +
+        `  ]\n` +
+        `}\n` +
+        `<span class="log-ok">✅ O domínio nunca foi tocado com dados sujos!</span>`;
+    }
+  </script>
+</body>
+</html>
