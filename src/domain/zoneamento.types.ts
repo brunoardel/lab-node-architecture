@@ -36,6 +36,10 @@ export type RegraZoneamento =
   | RegraComercial
   | RegraIndustrial;
 
+// Para testar a checagem exaustiva com assertNever, descomente a linha abaixo e a interface:
+// export interface RegraRural { tipo: 'rural'; areaMinimaHectares: number; }
+// export type RegraZoneamento = RegraResidencial | RegraComercial | RegraIndustrial | RegraRural;
+
 export interface DadosProjetoUrbanistico {
   projetoId: ProjetoId;
   usuarioId: UsuarioId;
