@@ -45,7 +45,41 @@ Durante esse tempo:
 
 ---
 
-## 2. Comparativo de Abordagens de Engenharia
+## 2. Mapa Mental da Arquitetura (Estilo Excalidraw) & Glossário de Conceitos
+
+Para visualizar como as peças fundamentais do runtime do Node.js se articulam, o diagrama abaixo sintetiza a relação entre a **Thread Principal**, o motor **V8**, a **Call Stack**, o **Event Loop**, a **libuv** e o paralelismo com **Worker Threads**:
+
+### 2.1 Desenho da Arquitetura (Estilo Excalidraw)
+
+![Mapa Mental da Arquitetura Node.js (Estilo Excalidraw)](assets/node-architecture-excalidraw.svg)
+
+> 💡 **Infográfico Interativo no Navegador:** Experimente a arquitetura ao vivo no arquivo [`docs/arquitetura-node-interativa.html`](file:///c:/Users/Bruno/Documents/Projetos/labs/lab-node-architecture/docs/arquitetura-node-interativa.html), com simulador de travamento de CPU, offloading com WorkerPool e medidor de Event Loop Lag em tempo real.
+> 
+> 💡 **Diagramas em Mermaid:** Consulte também o documento [`docs/ARQUITETURA_NODE_MERMAID.md`](file:///c:/Users/Bruno/Documents/Projetos/labs/lab-node-architecture/docs/ARQUITETURA_NODE_MERMAID.md) com o fluxo temporal e as 5 fases do Event Loop.
+
+
+### 2.2 Glossário Resumido dos Termos Fundamentais
+
+- **Event Loop**: O mecanismo central do Node.js que orquestra a execução assíncrona. Ele fica em um ciclo contínuo checando se a Call Stack está vazia e despachando os *callbacks* e eventos pendentes nas filas.
+- **Main Thread (Thread Principal)**: A única thread em que o motor JavaScript executa o código por padrão no Node.js (por isso o Node é considerado *single-threaded* para a execução do JS).
+- **Call Stack (Pilha de Execução)**: A estrutura em memória que registra quais funções estão sendo executadas no momento. Por ser única, se uma função síncrona demorar, nenhuma outra instrução executa até ela sair da pilha.
+- **I/O Não-Bloqueante (Non-blocking I/O)**: Modelo de arquitetura onde operações de entrada/saída (banco de dados, disco, rede) não travam a thread principal; o Node delega a tarefa e avisa via *callback* ou *Promise* quando terminar.
+- **V8**: O motor (*engine*) de JavaScript de código aberto do Google (usado no Chrome e no Node.js) responsável por compilar e executar o código JavaScript na thread principal.
+- **V8 Isolate**: Uma instância isolada do motor V8 com seu próprio *heap* de memória e coletor de lixo (*garbage collector*). Cada Worker Thread roda em seu próprio Isolate independente.
+- **libuv**: Biblioteca multiplataforma em C/C++ usada internamente pelo Node.js. É ela quem implementa o Event Loop, o suporte a operações assíncronas do SO e mantém uma *threadpool* interna para operações de disco, DNS e criptografia nativa.
+- **CPU-Bound**: Tarefas que demandam uso massivo de processamento matemático/lógico (criptografia pesada, renderização, cálculos geométricos). Se executadas na thread principal, congelam toda a aplicação.
+- **Event Loop Lag**: O atraso/tempo que o Event Loop leva para conseguir processar os próximos eventos da fila. Em casos de travamento por CPU-Bound, o lag dispara e a aplicação para de responder a requisições (como o `/health`).
+- **`setImmediate`**: Função do Node.js para agendar a execução de um *callback* na fase de *check* do Event Loop. É usada na técnica de *chunking* para fatiar um processamento longo em pequenos pedaços e aliviar a thread principal.
+- **`node:worker_threads`**: Módulo nativo do Node.js que permite criar threads reais do sistema operacional no mesmo processo para rodar JavaScript em paralelo em outros núcleos de CPU.
+- **`WorkerPool` ([`src/workers/worker-pool.ts`](file:///c:/Users/Bruno/Documents/Projetos/labs/lab-node-architecture/src/workers/worker-pool.ts))**: Padrão arquitetural que mantém um conjunto fixo de Worker Threads já instanciadas e reutilizáveis, evitando o alto custo de criar e destruir threads a cada requisição.
+- **`child_process.fork`**: Módulo nativo para disparar novos processos inteiros do sistema operacional (com memória própria e uma nova instância do Node.js rodando), diferente das threads que compartilham o mesmo processo.
+- **`postMessage` e Structured Clone**: Canal de comunicação entre threads; por padrão, os dados trafegados entre a thread principal e os workers são copiados via algoritmo de clonagem estruturada (*Structured Clone*).
+- **Transferable Objects (`ArrayBuffer`) / `SharedArrayBuffer`**: Estruturas de memória de baixo nível usadas para transferir a posse de dados binários ou compartilhar memória entre threads sem o custo de copiar/serializar dados.
+- **`os.availableParallelism()`**: Método nativo do módulo `os` do Node.js que retorna a quantidade ideal de núcleos lógicos disponíveis na máquina para dimensionamento de workers.
+
+---
+
+## 3. Comparativo de Abordagens de Engenharia
 
 | Abordagem | Consumo de CPU | Bloqueia Event Loop? | Complexidade | Recomendação Arquitetural |
 | :--- | :--- | :--- | :--- | :--- |
@@ -57,7 +91,7 @@ Durante esse tempo:
 
 ---
 
-## 3. O Problema Real em Produção (Cenário ArqLab)
+## 4. O Problema Real em Produção (Cenário ArqLab)
 
 Na **ArqLab**, os usuários submetem grandes arquivos de levantamento topográfico e solicitam o cálculo de terraplenagem (balanço compensado de corte e aterro para platôs de implantação de edifícios).
 
@@ -88,7 +122,7 @@ sequenceDiagram
 
 ---
 
-## 4. A Solução Arquitetural: `WorkerPool` com `node:worker_threads`
+## 5. A Solução Arquitetural: `WorkerPool` com `node:worker_threads`
 
 Para resolver o gargalo de forma definitiva sem adicionar dependências externas pesadas, utilizamos o módulo nativo do Node.js: **`node:worker_threads`**.
 
@@ -126,7 +160,7 @@ flowchart TD
 
 ---
 
-## 5. Como Executar e Comprovar na Prática
+## 6. Como Executar e Comprovar na Prática
 
 ### Forma A: Demonstração Automatizada no Terminal (Recomendado)
 Execute o script de laboratório que dispara as duas rotas em paralelo com requisições de `/health`:
@@ -194,7 +228,7 @@ npx vitest run test/event-loop-experiment.test.ts
 
 ---
 
-## 6. Boas Práticas e Cuidados em Produção com Worker Threads
+## 7. Boas Práticas e Cuidados em Produção com Worker Threads
 
 1. **Evite Criar Workers Sob Demanda:** Sempre use um `WorkerPool` reutilizável.
 2. **Custo de Serialização de Mensagens (`postMessage`):** Por padrão, os dados trafegados entre a thread principal e os workers passam pelo algoritmo de *Structured Clone*. Para volumes gigantescos de dados (> 100MB), utilize buffers transferíveis (`Transferable Objects` como `ArrayBuffer`) ou `SharedArrayBuffer` com controle de concorrência (`Atomics`).
