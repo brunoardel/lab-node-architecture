@@ -10,7 +10,7 @@
   - Implementar o serviço de cálculo com checagem exaustiva (`never`).
   - Implementar validação na rota com schema Zod e testes unitários no Vitest comprovando a quebra em tipos inválidos.
 
-- [ ] **Tarefa 3: O Experimento do Event Loop (Thread Bloqueante vs. Worker Threads)**
+- [x] **Tarefa 3: O Experimento do Event Loop (Thread Bloqueante vs. Worker Threads)**
   - Criar função de cálculo matemático pesado.
   - Criar rota `/bloqueante` e demonstrar como ela trava requisições de saúde (`/health`).
   - Implementar worker pool com `worker_threads` na rota `/otimizada` e demonstrar `/health` respondendo instantaneamente em paralelo.

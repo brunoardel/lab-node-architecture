@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infográfico Interativo: Arquitetura do Node.js, Event Loop & Concorrência</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070a12;
+      --bg-surface: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-card-hover: rgba(51, 65, 85, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.35);
+
+      --color-main: #f8fafc;
+      --color-muted: #94a3b8;
+      
+      --accent-blue: #38bdf8;
+      --accent-indigo: #818cf8;
+      --accent-purple: #c084fc;
+      --accent-emerald: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-rose: #fb7185;
+      --accent-orange: #fb923c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg-dark) 65%);
+      color: var(--color-main);
+      min-height: 100vh;
+      padding: 1.5rem;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* HEADER */
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .badge-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1rem;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-blue);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.3rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent-blue) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    p.subtitle {
+      color: var(--color-muted);
+      font-size: 1.05rem;
+      max-width: 850px;
+      margin: 0 auto;
+    }
+
+    /* TELEMETRY BAR */
+    .telemetry-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .telemetry-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 0.85rem 1.2rem;
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      transition: all 0.3s ease;
+    }
+
+    .telemetry-card:hover {
+      border-color: var(--border-glow);
+      transform: translateY(-2px);
+    }
+
+    .telemetry-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .telemetry-val {
+      font-size: 1.35rem;
+      font-weight: 800;
+      font-family: 'Fira Code', monospace;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .telemetry-val.good { color: var(--accent-emerald); }
+    .telemetry-val.warn { color: var(--accent-amber); }
+    .telemetry-val.danger { color: var(--accent-rose); animation: pulseAlert 0.8s infinite; }
+
+    @keyframes pulseAlert {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.02); }
+    }
+
+    /* CONTROL PANEL (ACTION BUTTONS & SPEED) */
+    .control-panel {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 1.2rem 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .control-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .controls-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--color-main);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .speed-selector {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--color-muted);
+    }
+
+    .speed-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--color-muted);
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .speed-btn.active {
+      background: var(--accent-blue);
+      color: #04101e;
+      border-color: var(--accent-blue);
+    }
+
+    .actions-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .btn {
+      padding: 0.65rem 1.15rem;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 1px solid transparent;
+      outline: none;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-danger {
+      background: rgba(251, 113, 133, 0.15);
+      color: var(--accent-rose);
+      border-color: rgba(251, 113, 133, 0.35);
+    }
+    .btn-danger:hover {
+      background: rgba(251, 113, 133, 0.25);
+      box-shadow: 0 0 16px rgba(251, 113, 133, 0.3);
+    }
+
+    .btn-success {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--accent-emerald);
+      border-color: rgba(52, 211, 153, 0.35);
+    }
+    .btn-success:hover {
+      background: rgba(52, 211, 153, 0.25);
+      box-shadow: 0 0 16px rgba(52, 211, 153, 0.3);
+    }
+
+    .btn-blue {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+    .btn-blue:hover {
+      background: rgba(56, 189, 248, 0.25);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-purple {
+      background: rgba(192, 132, 252, 0.15);
+      color: var(--accent-purple);
+      border-color: rgba(192, 132, 252, 0.35);
+    }
+    .btn-purple:hover {
+      background: rgba(192, 132, 252, 0.25);
+      box-shadow: 0 0 16px rgba(192, 132, 252, 0.3);
+    }
+
+    .btn-reset {
+      background: rgba(148, 163, 184, 0.15);
+      color: var(--color-muted);
+      border-color: rgba(148, 163, 184, 0.3);
+    }
+    .btn-reset:hover {
+      background: rgba(148, 163, 184, 0.25);
+      color: var(--color-main);
+    }
+
+    /* ========================================================
+       MASTER ARCHITECTURE CANVAS
+       ======================================================== */
+    .arch-process-container {
+      background: rgba(15, 23, 42, 0.65);
+      border: 2px dashed rgba(56, 189, 248, 0.35);
+      border-radius: 20px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      position: relative;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+    }
+
+    .process-tag {
+      position: absolute;
+      top: -12px;
+      left: 24px;
+      background: #0284c7;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.8rem;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    }
+
+    .arch-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+      .arch-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* MAIN THREAD COLUMN */
+    .main-thread-column {
+      background: rgba(30, 58, 138, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 16px;
+      padding: 1.3rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .main-thread-column.frozen {
+      border-color: var(--accent-rose);
+      background: rgba(225, 29, 72, 0.12);
+      box-shadow: 0 0 35px rgba(244, 63, 94, 0.35);
+    }
+
+    .column-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.6rem;
+    }
+
+    .column-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .badge-thread {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-thread.blue { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-thread.green { background: rgba(52, 211, 153, 0.15); color: var(--accent-emerald); border: 1px solid rgba(52, 211, 153, 0.3); }
+    .badge-thread.red { background: rgba(251, 113, 133, 0.15); color: var(--accent-rose); border: 1px solid rgba(251, 113, 133, 0.3); }
+
+    /* CALL STACK BOX */
+    .call-stack-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      border-radius: 12px;
+      padding: 1rem;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .card-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stack-frames-list {
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 0.45rem;
+      min-height: 90px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 8px;
+      padding: 0.6rem;
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      justify-content: flex-start;
+    }
+
+    .stack-frame {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(217, 119, 6, 0.25));
+      border: 1px solid var(--accent-amber);
+      color: #fef08a;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-family: 'Fira Code', monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      animation: pushFrame 0.3s ease;
+    }
+
+    .stack-frame.cpu-bound {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.35), rgba(185, 28, 28, 0.4));
+      border-color: var(--accent-rose);
+      color: #fecdd3;
+      font-weight: 600;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+      animation: pulseAlert 1s infinite;
+    }
+
+    .stack-frame.health-fast {
+      background: linear-gradient(135deg, rgba(52, 211, 153, 0.25), rgba(16, 185, 129, 0.3));
+      border-color: var(--accent-emerald);
+      color: #a7f3d0;
+      animation: pushFrame 0.3s ease;
+    }
+
+    @keyframes pushFrame {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* EVENT LOOP CIRCLE VISUALIZER */
+    .event-loop-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(192, 132, 252, 0.35);
+      border-radius: 12px;
+      padding: 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      position: relative;
+    }
+
+    .loop-visualizer {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .loop-ring {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      border: 4px dashed var(--accent-purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      position: relative;
+      animation: rotateLoop 6s linear infinite;
+      transition: all 0.3s ease;
+    }
+
+    .loop-ring.paused {
+      animation-play-state: paused;
+      border-color: var(--accent-rose);
+      box-shadow: 0 0 25px rgba(244, 63, 94, 0.4);
+    }
+
+    .loop-center-text {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--accent-purple);
+      letter-spacing: 0.05em;
+    }
+
+    .loop-ring.paused .loop-center-text {
+      color: var(--accent-rose);
+    }
+
+    @keyframes rotateLoop {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .loop-phases {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    /* PHASE BUTTONS (AGORA TOTALMENTE CLICÁVEIS) */
+    .phase-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 0.45rem 0.65rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+      color: var(--color-main);
+      transition: all 0.25s ease;
+      text-align: left;
+    }
+
+    .phase-btn:hover {
+      background: rgba(192, 132, 252, 0.2);
+      border-color: var(--accent-purple);
+      transform: translateY(-2px);
+    }
+
+    .phase-btn.active {
+      background: rgba(192, 132, 252, 0.3);
+      border-color: var(--accent-purple);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 0 12px rgba(192, 132, 252, 0.4);
+    }
+
+    /* RIGHT COLUMN: MULTI-CORE & LIBUV */
+    .multi-core-column {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    /* LIBUV CARD */
+    .libuv-card {
+      background: rgba(22, 101, 52, 0.12);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 16px;
+      padding: 1.2rem;
+      position: relative;
+    }
+
+    .libuv-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.8rem;
+      margin-top: 0.8rem;
+    }
+
+    .libuv-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.75rem;
+      transition: all 0.3s ease;
+    }
+
+    .libuv-box.active-io {
+      border-color: var(--accent-emerald);
+      box-shadow: 0 0 20px rgba(52, 211, 153, 0.3);
+    }
+
+    .libuv-box-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent-emerald);
+      text-transform: uppercase;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .libuv-box-desc {
+      font-size: 0.75rem;
+      color: var(--color-muted);
+    }
+
+    /* WORKER THREADS CARD */
+    .worker-pool-card {
+      background: rgba(194, 65, 12, 0.12);
+      border: 1px solid rgba(249, 115, 22, 0.35);
+      border-radius: 16px;
+      padding: 1.2rem;
+      position: relative;
+    }
+
+    .workers-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.8rem;
+      margin-top: 0.8rem;
+    }
+
+    @media (max-width: 600px) {
+      .workers-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .worker-slot {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .worker-slot.busy {
+      border-color: var(--accent-orange);
+      background: rgba(249, 115, 22, 0.18);
+      box-shadow: 0 0 25px rgba(249, 115, 22, 0.4);
+    }
+
+    .worker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .worker-state {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .worker-state.idle { background: rgba(52, 211, 153, 0.15); color: var(--accent-emerald); }
+    .worker-state.busy { background: rgba(249, 115, 22, 0.25); color: var(--accent-orange); animation: pulseAlert 1s infinite; }
+
+    .worker-progress-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 0.2rem;
+    }
+
+    .worker-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-orange);
+      transition: width 0.1s linear;
+    }
+
+    .worker-isolate-tag {
+      font-size: 0.7rem;
+      color: var(--color-muted);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .comms-banner {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 0.5rem 0.8rem;
+      font-size: 0.75rem;
+      margin-top: 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--color-muted);
+    }
+
+    .comms-badge {
+      color: var(--accent-orange);
+      font-weight: 600;
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* ========================================================
+       VISUAL FLYING PACKET ANIMATION LAYER
+       ======================================================== */
+    #packet-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1000;
+      overflow: visible;
+    }
+
+    .flying-packet {
+      position: absolute;
+      padding: 0.4rem 0.8rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: 'Fira Code', monospace;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      z-index: 1001;
+      transform: translate(-50%, -50%);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .flying-packet.blue {
+      background: #0284c7;
+      color: #fff;
+      border: 1px solid #38bdf8;
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.8);
+    }
+
+    .flying-packet.orange {
+      background: #ea580c;
+      color: #fff;
+      border: 1px solid #fb923c;
+      box-shadow: 0 0 18px rgba(249, 115, 22, 0.8);
+    }
+
+    .flying-packet.green {
+      background: #16a34a;
+      color: #fff;
+      border: 1px solid #4ade80;
+      box-shadow: 0 0 18px rgba(74, 222, 128, 0.8);
+    }
+
+    .flying-packet.red {
+      background: #dc2626;
+      color: #fff;
+      border: 1px solid #f87171;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.9);
+      animation: pulseAlert 0.6s infinite;
+    }
+
+    .flying-packet.stuck {
+      background: #991b1b;
+      color: #fee2e2;
+      border: 2px dashed #f87171;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 1);
+      animation: shakeStuck 0.4s infinite;
+    }
+
+    @keyframes shakeStuck {
+      0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+      25% { transform: translate(-52%, -50%) rotate(-3deg); }
+      75% { transform: translate(-48%, -50%) rotate(3deg); }
+    }
+
+    /* TCP BUFFER BARRIER */
+    .tcp-buffer-badge {
+      display: none;
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: rgba(220, 38, 38, 0.2);
+      border: 1px solid var(--accent-rose);
+      color: var(--accent-rose);
+      font-size: 0.72rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-weight: 700;
+      animation: pulseAlert 0.8s infinite;
+    }
+
+    /* KEYWORDS SECTION */
+    .keywords-section {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .section-desc {
+      color: var(--color-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .keywords-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .kw-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--color-main);
+      padding: 0.45rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .kw-btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+
+    .kw-btn.active {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      border-color: var(--accent-blue);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(2, 132, 199, 0.5);
+    }
+
+    .kw-detail-card {
+      background: rgba(2, 6, 23, 0.6);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 12px;
+      padding: 1.2rem 1.5rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .kw-detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .kw-detail-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent-blue);
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .kw-detail-badge {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      font-weight: 600;
+    }
+
+    .kw-grid-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
+      margin-top: 0.8rem;
+    }
+
+    @media (max-width: 768px) {
+      .kw-grid-info {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .kw-block-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.35rem;
+    }
+
+    .kw-block-text {
+      font-size: 0.88rem;
+      color: #e2e8f0;
+      line-height: 1.5;
+    }
+
+    pre.code-snippet {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.78rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin-top: 0.4rem;
+    }
+
+    /* TERMINAL SECTION */
+    .terminal-section {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 1.2rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+    }
+
+    .term-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .term-dots {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    .term-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-r { background: #ef4444; }
+    .dot-y { background: #f59e0b; }
+    .dot-g { background: #10b981; }
+
+    .term-title {
+      font-size: 0.75rem;
+      font-family: 'Fira Code', monospace;
+      color: var(--color-muted);
+    }
+
+    .term-output {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.82rem;
+      min-height: 120px;
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .t-line {
+      display: flex;
+      gap: 0.6rem;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .t-time { color: #64748b; font-size: 0.75rem; }
+    .t-tag { font-weight: 700; font-size: 0.75rem; }
+    .t-tag.main { color: var(--accent-blue); }
+    .t-tag.loop { color: var(--accent-purple); }
+    .t-tag.worker { color: var(--accent-orange); }
+    .t-tag.libuv { color: var(--accent-emerald); }
+    .t-tag.warn { color: var(--accent-amber); }
+    .t-tag.err { color: var(--accent-rose); font-weight: 800; }
+    .t-msg { color: #f1f5f9; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      color: var(--color-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 1.5rem;
+    }
+
+    footer a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-top">
+        <span>⚡</span> Arquitetura Node.js & Concorrência de Alta Performance
+      </div>
+      <h1>Infográfico Interativo: O Runtime do Node.js</h1>
+      <p class="subtitle">
+        Veja as chamadas em trânsito visual entre a <strong>Thread Principal</strong>, a <strong>Call Stack</strong>, o <strong>Event Loop</strong> e as <strong>Worker Threads</strong>.
+      </p>
+    </header>
+
+    <!-- TELEMETRY BAR -->
+    <div class="telemetry-bar">
+      <div class="telemetry-card">
+        <span class="telemetry-label">Event Loop Lag</span>
+        <div class="telemetry-val good" id="tel-lag">0.4 ms</div>
+      </div>
+      <div class="telemetry-card">
+        <span class="telemetry-label">Status da Call Stack</span>
+        <div class="telemetry-val good" id="tel-stack">LIVRE (IDLE)</div>
+      </div>
+      <div class="telemetry-card">
+        <span class="telemetry-label">Health Check (/health)</span>
+        <div class="telemetry-val good" id="tel-health">200 OK (2.1ms)</div>
+      </div>
+      <div class="telemetry-card">
+        <span class="telemetry-label">WorkerPool (Threads)</span>
+        <div class="telemetry-val good" id="tel-pool">3/3 Ociosos</div>
+      </div>
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="control-panel">
+      <div class="control-header">
+        <div class="controls-title">
+          <span>🎮</span> Cenários de Simulação com Transições Visuais:
+        </div>
+        <div class="speed-selector">
+          <span>Velocidade da Animação:</span>
+          <button class="speed-btn active" onclick="setSpeed(1, this)">🐢 Lenta (Didática)</button>
+          <button class="speed-btn" onclick="setSpeed(0.5, this)">⚡ Média</button>
+          <button class="speed-btn" onclick="setSpeed(0.25, this)">🐇 Rápida</button>
+        </div>
+      </div>
+
+      <div class="actions-group">
+        <button class="btn btn-danger" onclick="simularCpuBoundBloqueante()" id="btn-bloqueante">
+          <span>🛑</span> 1. Disparar CPU-Bound na Main Thread (/bloqueante)
+        </button>
+        <button class="btn btn-success" onclick="simularWorkerPoolOtimizado()" id="btn-otimizada">
+          <span>⚙️</span> 2. Offloading com WorkerPool (/otimizada)
+        </button>
+        <button class="btn btn-blue" onclick="simularIoAssincrono()" id="btn-io">
+          <span>🌐</span> 3. I/O Não-Bloqueante (libuv)
+        </button>
+        <button class="btn btn-purple" onclick="simularProbeHealth()" id="btn-health">
+          <span>🩺</span> Disparar GET /health (K8s Probe)
+        </button>
+        <button class="btn btn-reset" onclick="resetarSimulador()" id="btn-reset">
+          <span>🔄</span> Resetar Simulação
+        </button>
+      </div>
+    </div>
+
+    <!-- MASTER ARCHITECTURE CANVAS -->
+    <div class="arch-process-container" id="process-container">
+      <div class="process-tag">
+        📦 Processo Node.js (PID 28419) • os.availableParallelism(): 8 Cores
+      </div>
+
+      <!-- TCP BUFFER WARNING BADGE -->
+      <div class="tcp-buffer-badge" id="tcp-buffer-badge">
+        ⚠️ BUFFER TCP DO SO: Requisição /health retida!
+      </div>
+
+      <!-- CAMADA DE PACOTES VOADORES (ANIMATION OVERLAY) -->
+      <div id="packet-layer"></div>
+
+      <div class="arch-layout">
+        <!-- COLUNA 1: MAIN THREAD -->
+        <div class="main-thread-column" id="main-thread-col">
+          <div class="column-header">
+            <div class="column-title">
+              <span>🧵</span> Main Thread (V8 Isolate Principal)
+            </div>
+            <span class="badge-thread blue" id="main-thread-badge">Single-Threaded JS</span>
+          </div>
+
+          <!-- CALL STACK -->
+          <div class="call-stack-card" id="card-callstack">
+            <div class="card-label">
+              <span>📚 Call Stack (Pilha de Execução)</span>
+              <span id="stack-depth" style="font-size:0.75rem; color:var(--color-muted)">0 frames</span>
+            </div>
+            <div class="stack-frames-list" id="stack-frames">
+              <div style="color: #64748b; font-size: 0.78rem; text-align: center; padding: 1.2rem;">
+                Call Stack ociosa. Aguardando execução síncrona...
+              </div>
+            </div>
+          </div>
+
+          <!-- EVENT LOOP -->
+          <div class="event-loop-card" id="card-eventloop">
+            <div class="card-label">
+              <span>🔄 Event Loop (libuv Orchestrator)</span>
+              <span id="loop-status-text" style="font-size:0.75rem; color:var(--accent-purple)">Rodando (60 FPS)</span>
+            </div>
+            <div class="loop-visualizer">
+              <div class="loop-ring" id="loop-spinner">
+                <span style="font-size: 1.2rem;">⚙️</span>
+                <span class="loop-center-text" id="loop-state-label">TICKING</span>
+              </div>
+              <div class="loop-phases">
+                <button class="phase-btn active" id="phase-micro" onclick="interagirFaseLoop('micro')">
+                  <span>⚡</span> Microtasks
+                </button>
+                <button class="phase-btn" id="phase-timers" onclick="interagirFaseLoop('timers')">
+                  <span>⏱️</span> Timers Phase
+                </button>
+                <button class="phase-btn" id="phase-poll" onclick="interagirFaseLoop('poll')">
+                  <span>📥</span> Poll (I/O)
+                </button>
+                <button class="phase-btn" id="phase-check" onclick="interagirFaseLoop('check')">
+                  <span>✅</span> Check (setImmediate)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- COLUNA 2: LIBUV & WORKER THREADS -->
+        <div class="multi-core-column">
+          <!-- LIBUV & KERNEL -->
+          <div class="libuv-card" id="card-libuv">
+            <div class="column-header" style="border-color: rgba(34, 197, 94, 0.2);">
+              <div class="column-title" style="color: var(--accent-emerald);">
+                <span>🌐</span> libuv & Kernel S.O.
+              </div>
+              <span class="badge-thread green">Multi-Threaded C/C++</span>
+            </div>
+            <div class="libuv-grid">
+              <div class="libuv-box" id="box-sockets">
+                <div class="libuv-box-title"><span>🚀</span> I/O Não-Bloqueante</div>
+                <div class="libuv-box-desc">
+                  Sockets TCP/HTTP e epoll/kqueue. O Kernel gerencia sem consumir CPU do JS.
+                </div>
+              </div>
+              <div class="libuv-box" id="box-threadpool">
+                <div class="libuv-box-title"><span>🧵</span> Threadpool Interna</div>
+                <div class="libuv-box-desc" id="libuv-tp-desc">
+                  4 threads padrão para File System (fs), DNS e operações de Crypto nativo.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- WORKER POOL -->
+          <div class="worker-pool-card" id="card-workerpool">
+            <div class="column-header" style="border-color: rgba(249, 115, 22, 0.25);">
+              <div class="column-title" style="color: var(--accent-orange);">
+                <span>⚙️</span> node:worker_threads (WorkerPool)
+              </div>
+              <span class="badge-thread red" style="background: rgba(249, 115, 22, 0.15); color: var(--accent-orange); border-color: rgba(249, 115, 22, 0.3);">
+                Paralelismo Multi-Core
+              </span>
+            </div>
+
+            <div class="workers-grid">
+              <div class="worker-slot" id="worker-1">
+                <div class="worker-header">
+                  <span>Worker #1</span>
+                  <span class="worker-state idle" id="w1-state">IDLE</span>
+                </div>
+                <div class="worker-isolate-tag">V8 Isolate #1</div>
+                <div class="worker-progress-bar"><div class="worker-progress-fill" id="w1-progress"></div></div>
+              </div>
+
+              <div class="worker-slot" id="worker-2">
+                <div class="worker-header">
+                  <span>Worker #2</span>
+                  <span class="worker-state idle" id="w2-state">IDLE</span>
+                </div>
+                <div class="worker-isolate-tag">V8 Isolate #2</div>
+                <div class="worker-progress-bar"><div class="worker-progress-fill" id="w2-progress"></div></div>
+              </div>
+
+              <div class="worker-slot" id="worker-3">
+                <div class="worker-header">
+                  <span>Worker #3</span>
+                  <span class="worker-state idle" id="w3-state">IDLE</span>
+                </div>
+                <div class="worker-isolate-tag">V8 Isolate #3</div>
+                <div class="worker-progress-bar"><div class="worker-progress-fill" id="w3-progress"></div></div>
+              </div>
+            </div>
+
+            <div class="comms-banner" id="comms-banner">
+              <span>Canal Inter-Threads:</span>
+              <span class="comms-badge" id="comms-status">postMessage() (Structured Clone)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KEYWORDS EXPLORER -->
+    <div class="keywords-section">
+      <div class="section-title">
+        <span>📖</span> Explorador Interativo das Palavras-Chave do Node.js
+      </div>
+      <p class="section-desc">
+        Clique em qualquer conceito abaixo para inspecionar seu papel na arquitetura, ver o impacto real em produção e destacar o componente correspondente no diagrama:
+      </p>
+
+      <div class="keywords-pills" id="keywords-container"></div>
+      <div class="kw-detail-card" id="keyword-detail"></div>
+    </div>
+
+    <!-- LIVE CONSOLE -->
+    <div class="terminal-section">
+      <div class="term-header">
+        <div class="term-dots">
+          <div class="term-dot dot-r"></div>
+          <div class="term-dot dot-y"></div>
+          <div class="term-dot dot-g"></div>
+        </div>
+        <div class="term-title">Console de Eventos em Tempo Real (Event Stream)</div>
+        <button class="btn btn-reset" style="padding: 0.2rem 0.6rem; font-size: 0.72rem;" onclick="limparLogs()">
+          Limpar
+        </button>
+      </div>
+      <div class="term-output" id="term-logs"></div>
+    </div>
+
+    <footer>
+      Laboratório de Arquitetura de Software — Projeto <code>lab-node-architecture</code> • 
+      <a href="EXPERIMENTO_EVENT_LOOP.md">Voltar para o Guia do Experimento (Markdown)</a>
+    </footer>
+  </div>
+
+  <script>
+    // ========================================================
+    // VELOCIDADE GLOBAL DA SIMULAÇÃO
+    // ========================================================
+    let speedFactor = 1.0; // 1.0 = Lenta/Didática, 0.5 = Média, 0.25 = Rápida
+
+    function setSpeed(factor, btn) {
+      speedFactor = factor;
+      document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      logMsg('CONFIG', 'main', `Velocidade ajustada para: ${factor === 1 ? 'Lenta (Didática)' : factor === 0.5 ? 'Média' : 'Rápida'}`);
+    }
+
+    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms * speedFactor));
+
+    // ========================================================
+    // MOTOR DE TRANSIÇÃO VISUAL: FLYING PACKETS (PACOTES VOADORES)
+    // ========================================================
+    const packetLayer = document.getElementById('packet-layer');
+    const processContainer = document.getElementById('process-container');
+
+    function animatePacket({ text, colorClass = 'blue', fromEl, toEl, duration = 1400, onComplete }) {
+      return new Promise(resolve => {
+        const fromRect = fromEl.getBoundingClientRect();
+        const toRect = toEl.getBoundingClientRect();
+        const containerRect = processContainer.getBoundingClientRect();
+
+        const startX = fromRect.left + fromRect.width / 2 - containerRect.left;
+        const startY = fromRect.top + fromRect.height / 2 - containerRect.top;
+        const endX = toRect.left + toRect.width / 2 - containerRect.left;
+        const endY = toRect.top + toRect.height / 2 - containerRect.top;
+
+        const packet = document.createElement('div');
+        packet.className = `flying-packet ${colorClass}`;
+        packet.innerHTML = text;
+        packet.style.left = `${startX}px`;
+        packet.style.top = `${startY}px`;
+        packetLayer.appendChild(packet);
+
+        const realDuration = duration * speedFactor;
+
+        // Animação curva suave usando Web Animations API
+        const midY = Math.min(startY, endY) - 30;
+        const midX = (startX + endX) / 2;
+
+        const anim = packet.animate([
+          { transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0, left: `${startX}px`, top: `${startY}px` },
+          { transform: 'translate(-50%, -50%) scale(1.1)', opacity: 1, left: `${midX}px`, top: `${midY}px`, offset: 0.5 },
+          { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, left: `${endX}px`, top: `${endY}px` }
+        ], {
+          duration: realDuration,
+          easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+          fill: 'forwards'
+        });
+
+        anim.onfinish = () => {
+          packet.remove();
+          if (onComplete) onComplete();
+          resolve();
+        };
+      });
+    }
+
+    // ========================================================
+    // BASE DE DADOS DAS PALAVRAS-CHAVE
+    // ========================================================
+    const KEYWORDS = [
+      {
+        id: "event-loop",
+        name: "Event Loop",
+        highlightId: "card-eventloop",
+        role: "Orquestrador Assíncrono",
+        summary: "Mecanismo central do Node.js (fornecido pela libuv) que monitora continuamente se a Call Stack está vazia para despachar callbacks pendentes das filas de timers, I/O e microtasks.",
+        impacto: "Se a Call Stack for bloqueada por um cálculo síncrono longo, o Event Loop para de girar (Event Loop Lag), deixando a API inteira surda para novas conexões HTTP.",
+        code: `// O Event Loop só avança para a próxima fase quando a Call Stack esvazia!\nwhile (eventLoop.hasMoreWork()) {\n  eventLoop.runPhase('timers');\n  eventLoop.runPhase('poll');\n  eventLoop.runPhase('check');\n}`
+      },
+      {
+        id: "main-thread",
+        name: "Main Thread",
+        highlightId: "main-thread-col",
+        role: "Execução do Código JavaScript",
+        summary: "A única thread do sistema operacional onde o motor V8 compila e executa o código JavaScript do desenvolvedor.",
+        impacto: "Diferente de Java ou Go, o Node.js executa JavaScript de forma single-threaded por padrão. Uma única exceção não tratada ou laço síncrono pode travar todos os usuários da aplicação.",
+        code: `// Toda função comum roda aqui na Main Thread:\nfunction calcularVolume(terreno) {\n  // Se este laço demorar 2.2s, NADA mais roda na API durante esse tempo!\n}`
+      },
+      {
+        id: "call-stack",
+        name: "Call Stack",
+        highlightId: "card-callstack",
+        role: "Pilha de Execução Síncrona",
+        summary: "Estrutura de dados em memória que registra o ponto do programa em execução (LIFO - Last In, First Out).",
+        impacto: "Funções que empilham muitas chamadas recursivas podem causar 'RangeError: Maximum call stack size exceeded'. Tarefas que demoram nessa pilha bloqueiam o despachador de eventos.",
+        code: `function a() { b(); }\nfunction b() { c(); }\na(); // Call Stack: [a] -> [a, b] -> [a, b, c]`
+      },
+      {
+        id: "io-nao-bloqueante",
+        name: "I/O Não-Bloqueante",
+        highlightId: "card-libuv",
+        role: "Desempenho de Entrada e Saída",
+        summary: "Modelo em que leituras e escritas em rede, disco ou banco de dados são delegadas ao SO e notificadas posteriormente, sem travar o processador enquanto espera a resposta.",
+        impacto: "Permite que uma única thread atenda dezenas de milhares de requisições simultâneas de banco ou HTTP com consumo mínimo de memória.",
+        code: `// Não espera o disco! Registra a Promise e libera a thread imediatamente:\nconst dados = await fs.promises.readFile('terreno.json');`
+      },
+      {
+        id: "v8-isolate",
+        name: "V8 & V8 Isolate",
+        highlightId: "main-thread-col",
+        role: "Motor de Execução e Memória",
+        summary: "O Google V8 compila JavaScript para código de máquina nativo. Um 'Isolate' é uma instância independente do V8, contendo seu próprio Heap de memória e Garbage Collector.",
+        impacto: "Cada Worker Thread possui seu próprio V8 Isolate. Isso significa isolamento total: uma thread não consegue corromper a memória de outra diretamente.",
+        code: `// Cada Worker Thread inicia um novo V8 Isolate independente:\nconst { Worker } = require('node:worker_threads');\nconst worker = new Worker('./calc.js'); // Cria novo V8 Isolate`
+      },
+      {
+        id: "libuv",
+        name: "libuv",
+        highlightId: "card-libuv",
+        role: "Núcleo de Abstração do SO",
+        summary: "Biblioteca multiplataforma em C/C++ que fornece o Event Loop, I/O assíncrono via epoll/kqueue e gerencia uma pool interna de 4 threads para operações de disco, DNS e crypto.",
+        impacto: "É o verdadeiro 'músculo' por trás da velocidade do Node.js para rede e arquivos.",
+        code: `// Altere o tamanho da threadpool da libuv via variável de ambiente:\nprocess.env.UV_THREADPOOL_SIZE = 8;`
+      },
+      {
+        id: "cpu-bound",
+        name: "CPU-Bound",
+        highlightId: "card-callstack",
+        role: "Gargalo Computacional",
+        summary: "Operações matemáticas intensivas (interpolações trigonométricas, cálculo de terraplenagem, hash de senhas, compressão pesada) que consom 100% de um núcleo de CPU.",
+        impacto: "O maior perigo em Node.js: se executado na Main Thread, paralisa todo o servidor, impedindo até mesmo probes de saúde do Kubernetes.",
+        code: `// Cálculo volumétrico de terraplenagem na ArqLab:\nfor (let i = 0; i < 150_000_000; i++) {\n  vol += Math.sin(x) * Math.cos(y) * Math.sqrt(z);\n}`
+      },
+      {
+        id: "event-loop-lag",
+        name: "Event Loop Lag",
+        highlightId: "card-eventloop",
+        role: "Métrica Vital de Observabilidade",
+        summary: "O tempo de atraso entre o momento em que um timer deveria disparar e o momento em que ele é efetivamente executado.",
+        impacto: "Em produção, um Event Loop Lag > 50ms indica degradação severa; lag de segundos faz o load balancer e o Kubernetes derrubarem o container acreditando que o processo travou.",
+        code: `// Medição contínua de lag com perf_hooks:\nconst { monitorEventLoopDelay } = require('node:perf_hooks');\nconst h = monitorEventLoopDelay({ resolution: 20 });\nh.enable();`
+      },
+      {
+        id: "set-immediate",
+        name: "setImmediate (Chunking)",
+        highlightId: "phase-check",
+        role: "Fatiamento de Tarefas",
+        summary: "Função que agenda execução na fase 'Check' do Event Loop. Permite quebrar laços pesados em pequenas fatias (chunks), intercalando com outras requisições HTTP.",
+        impacto: "Útil para tarefas médias, mas ineficiente para cálculos matemáticos gigantescos (onde Worker Threads são a solução recomendada).",
+        code: `// Fatiando um processamento longo:\nfunction processarChunk(idx) {\n  // processa fatia...\n  if (idx < total) setImmediate(() => processarChunk(idx + 1));\n}`
+      },
+      {
+        id: "worker-threads",
+        name: "node:worker_threads",
+        highlightId: "card-workerpool",
+        role: "Paralelismo de Threads Real",
+        summary: "Módulo nativo que permite instanciar threads reais do sistema operacional executando código JavaScript em paralelo dentro do mesmo processo.",
+        impacto: "Padrão-ouro para tarefas CPU-Bound em Node.js: calcula em outro núcleo sem congelar o Event Loop da Main Thread.",
+        code: `import { Worker, isMainThread, parentPort } from 'node:worker_threads';\nif (isMainThread) {\n  const w = new Worker(__filename);\n} else {\n  parentPort.postMessage('resultado');\n}`
+      },
+      {
+        id: "worker-pool",
+        name: "WorkerPool",
+        highlightId: "card-workerpool",
+        role: "Design Pattern de Resiliência",
+        summary: "Padrão de engenharia que mantém uma quantidade fixa de Worker Threads pré-instanciadas, reutilizáveis e com fila FIFO de tarefas.",
+        impacto: "Evita o altíssimo custo de criar e destruir V8 Isolates a cada requisição (economia de ~100ms e dezenas de MB de RAM por chamada).",
+        code: `// src/workers/worker-pool.ts\nconst pool = new WorkerPool({\n  poolSize: os.availableParallelism(),\n  workerPath: './volumetria.worker.js'\n});`
+      },
+      {
+        id: "post-message",
+        name: "postMessage & Structured Clone",
+        highlightId: "comms-banner",
+        role: "Comunicação Inter-Threads",
+        summary: "Canal bidirecional de mensagens entre threads. Por padrão, clona os dados através do algoritmo Structured Clone.",
+        impacto: "Seguro (threads não compartilham estado mutável acidentalmente), mas pode adicionar latência de serialização se o payload tiver dezenas de megabytes.",
+        code: `worker.postMessage({ grid: malhaTopografica });\nworker.on('message', (resultado) => { ... });`
+      },
+      {
+        id: "transferable-objects",
+        name: "Transferable Objects & SharedArrayBuffer",
+        highlightId: "comms-banner",
+        role: "Zero-Copy de Memória",
+        summary: "Estruturas de memória binária (ArrayBuffer) cuja posse pode ser transferida instantaneamente para outra thread sem custo de cópia de bytes.",
+        impacto: "Essencial em processamento de vídeo, IA ou malhas geométricas com milhões de pontos.",
+        code: `// Zero-Copy: transfere a posse do buffer instantaneamente:\nworker.postMessage({ buffer }, [buffer]);`
+      },
+      {
+        id: "child-process",
+        name: "child_process.fork",
+        highlightId: "process-container",
+        role: "Multi-Processo do SO",
+        summary: "Cria um processo filho completo no sistema operacional com seu próprio PID, Heap de memória e interpretador Node.js.",
+        impacto: "Maior isolamento de segurança que Worker Threads, porém com maior overhead de memória RAM (~30MB+ por processo).",
+        code: `import { fork } from 'node:child_process';\nconst child = fork('./processo-pesado.js');`
+      },
+      {
+        id: "available-parallelism",
+        name: "os.availableParallelism()",
+        highlightId: "process-container",
+        role: "Dimensionamento de Concorrência",
+        summary: "Função nativa introduzida no Node.js v19.4+ que retorna o número de núcleos lógicos disponíveis no ambiente (respeitando limites de cgroups em containers Docker/Kubernetes).",
+        impacto: "Substitui com precisão `os.cpus().length`, evitando superalocação de threads que degradariam a máquina por excesso de Context Switching.",
+        code: `import os from 'node:os';\nconst numCores = os.availableParallelism(); // Ex: 8 cores`
+      }
+    ];
+
+    // ========================================================
+    // RENDERIZAR EXPLORADOR DE PALAVRAS-CHAVE
+    // ========================================================
+    const keywordsContainer = document.getElementById('keywords-container');
+    const detailContainer = document.getElementById('keyword-detail');
+
+    function renderKeywords() {
+      keywordsContainer.innerHTML = '';
+      KEYWORDS.forEach((kw, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `kw-btn ${idx === 0 ? 'active' : ''}`;
+        btn.id = `kw-btn-${kw.id}`;
+        btn.innerHTML = `<span>🔹</span> ${kw.name}`;
+        btn.onclick = () => selectKeyword(kw.id);
+        keywordsContainer.appendChild(btn);
+      });
+      selectKeyword(KEYWORDS[0].id);
+    }
+
+    function selectKeyword(id) {
+      document.querySelectorAll('.kw-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`kw-btn-${id}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const kw = KEYWORDS.find(k => k.id === id);
+      if (!kw) return;
+
+      detailContainer.innerHTML = `
+        <div class="kw-detail-header">
+          <div class="kw-detail-name"><span>🔹</span> ${kw.name}</div>
+          <span class="kw-detail-badge">${kw.role}</span>
+        </div>
+        <p class="kw-block-text" style="font-size:0.95rem; margin-bottom: 0.8rem;">${kw.summary}</p>
+        <div class="kw-grid-info">
+          <div>
+            <div class="kw-block-title">⚠️ Impacto Real na Arquitetura de Produção:</div>
+            <p class="kw-block-text">${kw.impacto}</p>
+          </div>
+          <div>
+            <div class="kw-block-title">💻 Exemplo Prático de Uso:</div>
+            <pre class="code-snippet"><code>${kw.code}</code></pre>
+          </div>
+        </div>
+      `;
+
+      if (kw.highlightId) {
+        const target = document.getElementById(kw.highlightId);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          target.style.transition = 'all 0.4s ease';
+          target.style.transform = 'scale(1.025)';
+          target.style.boxShadow = '0 0 30px rgba(56, 189, 248, 0.6)';
+          setTimeout(() => {
+            target.style.transform = '';
+            target.style.boxShadow = '';
+          }, 1000);
+        }
+      }
+    }
+
+    renderKeywords();
+
+    // ========================================================
+    // CONSOLE DE LOGS
+    // ========================================================
+    const termLogs = document.getElementById('term-logs');
+
+    function logMsg(tag, type, msg) {
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+
+      const line = document.createElement('div');
+      line.className = 't-line';
+      line.innerHTML = `
+        <span class="t-time">${timeStr}</span>
+        <span class="t-tag ${type}">[${tag}]</span>
+        <span class="t-msg">${msg}</span>
+      `;
+      termLogs.appendChild(line);
+      termLogs.scrollTop = termLogs.scrollHeight;
+    }
+
+    function limparLogs() {
+      termLogs.innerHTML = '';
+      logMsg('CONSOLE', 'main', 'Console limpo.');
+    }
+
+    logMsg('INIT', 'main', 'Processo Node.js carregado. V8 e libuv prontos.');
+    logMsg('INIT', 'worker', 'WorkerPool inicializado com 3 workers ociosos.');
+
+    // ========================================================
+    // ESTADO E CONTROLE DAS SIMULAÇÕES
+    // ========================================================
+    let activeSimulation = null; // 'bloqueante' | 'otimizada' | 'io' | null
+    let activeLagInterval = null;
+    let stuckHealthPacket = null;
+
+    // INTERAÇÃO COM AS FASES DO EVENT LOOP
+    function interagirFaseLoop(fase) {
+      document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById(`phase-${fase}`);
+      if (btn) btn.classList.add('active');
+
+      const descriptions = {
+        micro: {
+          title: "Fase 0: Microtasks (Prioridade Máxima)",
+          desc: "Executa filas de process.nextTick() e Promise.then(). O Node.js NUNCA avança para a próxima fase do Event Loop enquanto houver microtasks pendentes!"
+        },
+        timers: {
+          title: "Fase 1: Timers Phase",
+          desc: "Executa callbacks agendados por setTimeout() e setInterval() cujos limites de tempo já expiraram no relógio do sistema."
+        },
+        poll: {
+          title: "Fase 3: Poll Phase (Coração do I/O)",
+          desc: "Recupera novos eventos de I/O de rede (sockets TCP/HTTP) e disco. Se a fila estiver vazia, aguarda novas conexões até o timer mais próximo expirar."
+        },
+        check: {
+          title: "Fase 4: Check Phase (setImmediate)",
+          desc: "Executa callbacks registrados com setImmediate(). É a fase projetada para a técnica de 'Chunking' (fatiamento de tarefas longas)."
+        }
+      };
+
+      const info = descriptions[fase];
+      if (info) {
+        logMsg('EVENT LOOP', 'loop', `👉 Inspecionando ${info.title}: ${info.desc}`);
+        selectKeyword(fase === 'check' ? 'set-immediate' : 'event-loop');
+      }
+    }
+
+    // ========================================================
+    // CENÁRIO 1: CPU-BOUND BLOQUEANTE (/bloqueante)
+    // ========================================================
+    async function simularCpuBoundBloqueante() {
+      if (activeSimulation) return;
+      activeSimulation = 'bloqueante';
+
+      const mainCol = document.getElementById('main-thread-col');
+      const loopRing = document.getElementById('loop-spinner');
+      const stackFrames = document.getElementById('stack-frames');
+      const telLag = document.getElementById('tel-lag');
+      const telStack = document.getElementById('tel-stack');
+      const telHealth = document.getElementById('tel-health');
+      const loopStatusText = document.getElementById('loop-status-text');
+      const loopStateLabel = document.getElementById('loop-state-label');
+      const tcpBadge = document.getElementById('tcp-buffer-badge');
+
+      logMsg('HTTP REQ', 'warn', '📥 Cliente disparou GET /bloqueante (Cálculo Pesado de Terraplenagem)');
+
+      // 1. Transição visual: Pacote entra na Call Stack
+      await animatePacket({
+        text: '📥 GET /bloqueante',
+        colorClass: 'red',
+        fromEl: document.getElementById('btn-bloqueante'),
+        toEl: document.getElementById('card-callstack'),
+        duration: 1200
+      });
+
+      // 2. Empilha frames na Call Stack
+      stackFrames.innerHTML = `
+        <div class="stack-frame cpu-bound">
+          <span>calcularVolumetria(malha50x50)</span>
+          <span>🔥 100% CPU</span>
+        </div>
+        <div class="stack-frame">
+          <span>fastify.handler('/bloqueante')</span>
+          <span>1.2ms</span>
+        </div>
+      `;
+      document.getElementById('stack-depth').innerText = '2 frames';
+
+      // 3. CONGELA A MAIN THREAD E O EVENT LOOP
+      mainCol.classList.add('frozen');
+      loopRing.classList.add('paused');
+      loopStateLabel.innerText = 'CONGELADO';
+      loopStatusText.innerText = 'CONGELADO (0 FPS)';
+      loopStatusText.style.color = 'var(--accent-rose)';
+
+      telStack.className = 'telemetry-val danger';
+      telStack.innerText = 'OCUPADA 100%';
+
+      logMsg('MAIN THREAD', 'err', '🔥 Call Stack travada em laço matemático contínuo (2.2s). Event Loop PAROU de girar!');
+
+      // Medidor de lag aumentando progressivamente
+      let lag = 100;
+      activeLagInterval = setInterval(() => {
+        lag += 250;
+        telLag.className = 'telemetry-val danger';
+        telLag.innerText = `${lag} ms`;
+        telHealth.className = 'telemetry-val danger';
+        telHealth.innerText = `TIMEOUT (Sem Resposta)`;
+      }, 350 * speedFactor);
+
+      // 4. Simulamos um K8s health probe chegando automaticamente no meio do congelamento
+      await wait(1000);
+      logMsg('K8S PROBE', 'warn', '🩺 Orquestrador disparou GET /health... Tentando conectar na API...');
+
+      // O pacote tenta entrar na Call Stack mas é RETIDO no buffer TCP
+      tcpBadge.style.display = 'block';
+      const stuckP = document.createElement('div');
+      stuckP.className = 'flying-packet stuck';
+      stuckP.innerHTML = '🛑 GET /health (REPRESADO NO TCP)';
+      
+      const csRect = document.getElementById('card-callstack').getBoundingClientRect();
+      const pRect = processContainer.getBoundingClientRect();
+      stuckP.style.left = `${csRect.left - pRect.left + 20}px`;
+      stuckP.style.top = `${csRect.top - pRect.top - 20}px`;
+      packetLayer.appendChild(stuckP);
+      stuckHealthPacket = stuckP;
+
+      logMsg('K8S PROBE', 'err', '🛑 GET /health travado no buffer TCP do SO! A Main Thread não consegue dar socket.accept()!');
+
+      // Espera o cálculo pesado terminar
+      await wait(2500);
+      clearInterval(activeLagInterval);
+
+      // 5. Cálculo termina
+      logMsg('MAIN THREAD', 'main', 'Cálculo de terraplenagem finalizado (65.225,62 m³ calculados na Thread Principal).');
+      
+      // Resposta sai da Call stack
+      await animatePacket({
+        text: '📤 200 OK (Volumetria)',
+        colorClass: 'blue',
+        fromEl: document.getElementById('card-callstack'),
+        toEl: document.getElementById('process-container'),
+        duration: 1000
+      });
+
+      // Libera Event loop
+      mainCol.classList.remove('frozen');
+      loopRing.classList.remove('paused');
+      loopStateLabel.innerText = 'TICKING';
+      loopStatusText.innerText = 'Rodando (60 FPS)';
+      loopStatusText.style.color = 'var(--accent-purple)';
+
+      // Agora a requisição represada finalmente entra
+      tcpBadge.style.display = 'none';
+      if (stuckHealthPacket) {
+        stuckHealthPacket.remove();
+        stuckHealthPacket = null;
+      }
+
+      logMsg('EVENT LOOP', 'warn', 'Event Loop destravou! Atendendo GET /health atrasado...');
+      
+      stackFrames.innerHTML = `
+        <div class="stack-frame health-fast">
+          <span>GET /health</span>
+          <span>⚠️ Atraso: ${lag}ms</span>
+        </div>
+      `;
+
+      await wait(800);
+
+      await animatePacket({
+        text: `📤 200 OK (/health após ${lag}ms)`,
+        colorClass: 'green',
+        fromEl: document.getElementById('card-callstack'),
+        toEl: document.getElementById('btn-health'),
+        duration: 1000
+      });
+
+      stackFrames.innerHTML = `
+        <div style="color: #64748b; font-size: 0.78rem; text-align: center; padding: 1.2rem;">
+          Call Stack ociosa. Aguardando execução síncrona...
+        </div>
+      `;
+      document.getElementById('stack-depth').innerText = '0 frames';
+
+      telLag.className = 'telemetry-val good';
+      telLag.innerText = '0.5 ms';
+      telStack.className = 'telemetry-val good';
+      telStack.innerText = 'LIVRE (IDLE)';
+      telHealth.className = 'telemetry-val good';
+      telHealth.innerText = '200 OK (2.1ms)';
+
+      logMsg('K8S PROBE', 'warn', `⚠️ GET /health finalmente respondeu após ${lag}ms de atraso! (Risco de Pod Eviction)`);
+      activeSimulation = null;
+    }
+
+    // ========================================================
+    // CENÁRIO 2: WORKER THREADS OFFLOADING (/otimizada)
+    // ========================================================
+    async function simularWorkerPoolOtimizado() {
+      if (activeSimulation) return;
+      activeSimulation = 'otimizada';
+
+      const stackFrames = document.getElementById('stack-frames');
+      const w2 = document.getElementById('worker-2');
+      const w2State = document.getElementById('w2-state');
+      const w2Progress = document.getElementById('w2-progress');
+      const telPool = document.getElementById('tel-pool');
+      const commsStatus = document.getElementById('comms-status');
+
+      logMsg('HTTP REQ', 'main', '📥 Cliente disparou GET /otimizada (WorkerPool habilitado)');
+
+      // 1. Pacote entra na Call Stack
+      await animatePacket({
+        text: '📥 GET /otimizada',
+        colorClass: 'blue',
+        fromEl: document.getElementById('btn-otimizada'),
+        toEl: document.getElementById('card-callstack'),
+        duration: 1000
+      });
+
+      stackFrames.innerHTML = `
+        <div class="stack-frame">
+          <span>workerPool.execute(dadosTerreno)</span>
+          <span>0.8ms</span>
+        </div>
+      `;
+      document.getElementById('stack-depth').innerText = '1 frame';
+
+      await wait(600);
+
+      // 2. Transição visual: Pacote viaja da Call Stack até o Worker #2
+      logMsg('WORKER POOL', 'worker', '🚀 Despachando dados via postMessage() para Worker #2 (Thread isolada)...');
+      commsStatus.innerText = 'postMessage({ dadosTerreno }) ➔ [Worker #2]';
+
+      await animatePacket({
+        text: '📦 postMessage(dadosTerreno)',
+        colorClass: 'orange',
+        fromEl: document.getElementById('card-callstack'),
+        toEl: w2,
+        duration: 1600
+      });
+
+      // 3. Call Stack desocupa IMEDIATAMENTE!
+      stackFrames.innerHTML = `
+        <div style="color: #34d399; font-size: 0.78rem; text-align: center; padding: 1.2rem; font-weight: 600;">
+          ✨ Call Stack LIVRE! Thread Principal não fica presa no cálculo.
+        </div>
+      `;
+      document.getElementById('stack-depth').innerText = '0 frames';
+
+      w2.classList.add('busy');
+      w2State.className = 'worker-state busy';
+      w2State.innerText = 'BUSY (CPU 100%)';
+      telPool.innerText = '2/3 Ociosos (Worker #2 Ativo)';
+
+      // 4. Worker calcula em paralelo enquanto a Main Thread atende /health
+      logMsg('WORKER #2', 'worker', 'Worker #2 processando interpolações topográficas no Núcleo #2...');
+
+      // Barra de progresso do worker
+      let p = 0;
+      const progInt = setInterval(() => {
+        p += 15;
+        if (p <= 100) w2Progress.style.width = `${p}%`;
+      }, 250 * speedFactor);
+
+      // Enquanto o worker calcula, disparamos um /health ao vivo
+      await wait(800);
+      logMsg('K8S PROBE', 'main', '🩺 Disparando GET /health concorrente enquanto o Worker #2 calcula...');
+      
+      await animatePacket({
+        text: '🩺 GET /health',
+        colorClass: 'green',
+        fromEl: document.getElementById('btn-health'),
+        toEl: document.getElementById('card-callstack'),
+        duration: 800
+      });
+
+      logMsg('K8S PROBE', 'libuv', '⚡ GET /health respondido em 1.4ms! Main Thread e Event Loop continuam 100% livres!');
+
+      await wait(1200);
+      clearInterval(progInt);
+      w2Progress.style.width = '100%';
+
+      // 5. Worker finaliza e devolve o resultado via postMessage para o Event Loop
+      logMsg('WORKER #2', 'worker', 'Worker #2 terminou o cálculo! Enviando resultado via postMessage()...');
+      commsStatus.innerText = 'postMessage({ volumeCorte, aterro }) ➔ [Event Loop]';
+
+      await animatePacket({
+        text: '📦 postMessage(resultado)',
+        colorClass: 'orange',
+        fromEl: w2,
+        toEl: document.getElementById('card-eventloop'),
+        duration: 1400
+      });
+
+      // Worker volta para IDLE
+      w2.classList.remove('busy');
+      w2State.className = 'worker-state idle';
+      w2State.innerText = 'IDLE';
+      w2Progress.style.width = '0%';
+      telPool.innerText = '3/3 Ociosos';
+
+      // Event Loop entrega para a Call Stack
+      await animatePacket({
+        text: '⚡ Microtask: Promise.resolve()',
+        colorClass: 'purple',
+        fromEl: document.getElementById('card-eventloop'),
+        toEl: document.getElementById('card-callstack'),
+        duration: 800
+      });
+
+      // Envia resposta ao cliente
+      await animatePacket({
+        text: '📤 200 OK (65.225,62 m³)',
+        colorClass: 'blue',
+        fromEl: document.getElementById('card-callstack'),
+        toEl: document.getElementById('btn-otimizada'),
+        duration: 1000
+      });
+
+      stackFrames.innerHTML = `
+        <div style="color: #64748b; font-size: 0.78rem; text-align: center; padding: 1.2rem;">
+          Call Stack ociosa. Aguardando execução síncrona...
+        </div>
+      `;
+
+      logMsg('HTTP RES', 'main', '🏆 SUCESSO: Resposta entregue ao cliente sem degradar a latência do servidor!');
+      activeSimulation = null;
+    }
+
+    // ========================================================
+    // CENÁRIO 3: I/O NÃO-BLOQUEANTE (libuv)
+    // ========================================================
+    async function simularIoAssincrono() {
+      if (activeSimulation) return;
+      activeSimulation = 'io';
+
+      const stackFrames = document.getElementById('stack-frames');
+      const boxThreadpool = document.getElementById('box-threadpool');
+
+      logMsg('HTTP REQ', 'libuv', '📥 Requisição disparou fs.readFile("topografia-malha.las")');
+
+      // 1. Entra na stack
+      await animatePacket({
+        text: '📥 fs.readFile()',
+        colorClass: 'blue',
+        fromEl: document.getElementById('btn-io'),
+        toEl: document.getElementById('card-callstack'),
+        duration: 1000
+      });
+
+      stackFrames.innerHTML = `
+        <div class="stack-frame">
+          <span>fs.promises.readFile(...)</span>
+          <span>0.3ms</span>
+        </div>
+      `;
+
+      await wait(500);
+
+      // 2. Delegado para a threadpool da libuv
+      logMsg('LIBUV', 'libuv', 'Delegação imediata para a threadpool em C/C++ da libuv. A Main Thread é liberada!');
+      
+      await animatePacket({
+        text: '🌐 Delegar I/O para libuv',
+        colorClass: 'green',
+        fromEl: document.getElementById('card-callstack'),
+        toEl: boxThreadpool,
+        duration: 1200
+      });
+
+      boxThreadpool.classList.add('active-io');
+      stackFrames.innerHTML = `
+        <div style="color: #34d399; font-size: 0.78rem; text-align: center; padding: 1.2rem;">
+          Call Stack livre! O sistema operacional lê o arquivo em disco em segundo plano.
+        </div>
+      `;
+
+      await wait(1600);
+
+      // 3. Arquivo lido -> Envia callback para o Event Loop
+      logMsg('LIBUV', 'libuv', 'Disco leu 45MB de pontos! Registrando callback na fase Poll do Event Loop.');
+      boxThreadpool.classList.remove('active-io');
+
+      await animatePacket({
+        text: '📥 Callback Pronto',
+        colorClass: 'green',
+        fromEl: boxThreadpool,
+        toEl: document.getElementById('card-eventloop'),
+        duration: 1200
+      });
+
+      // 4. Event loop despacha na stack
+      await animatePacket({
+        text: '⚡ Resolver Promise',
+        colorClass: 'purple',
+        fromEl: document.getElementById('card-eventloop'),
+        toEl: document.getElementById('card-callstack'),
+        duration: 800
+      });
+
+      stackFrames.innerHTML = `
+        <div style="color: #64748b; font-size: 0.78rem; text-align: center; padding: 1.2rem;">
+          Call Stack ociosa. Aguardando execução síncrona...
+        </div>
+      `;
+
+      logMsg('HTTP RES', 'libuv', 'Arquivo entregue ao cliente via stream assíncrono.');
+      activeSimulation = null;
+    }
+
+    // ========================================================
+    // BOTÃO MANUAL: DISPARAR GET /HEALTH
+    // ========================================================
+    async function simularProbeHealth() {
+      // Se estiver no meio do bloqueio CPU-bound, simula o represamento
+      if (activeSimulation === 'bloqueante') {
+        logMsg('K8S PROBE', 'err', '⚠️ Botão GET /health clicado durante o bloqueio! Requisição retida no socket TCP!');
+        return;
+      }
+
+      logMsg('K8S PROBE', 'main', '🩺 Disparando teste de integridade GET /health manual...');
+      
+      const telHealth = document.getElementById('tel-health');
+      
+      await animatePacket({
+        text: '🩺 GET /health',
+        colorClass: 'green',
+        fromEl: document.getElementById('btn-health'),
+        toEl: document.getElementById('card-callstack'),
+        duration: 700
+      });
+
+      telHealth.className = 'telemetry-val good';
+      telHealth.innerText = '200 OK (1.8ms)';
+      
+      await animatePacket({
+        text: '✅ 200 OK (1.8ms)',
+        colorClass: 'green',
+        fromEl: document.getElementById('card-callstack'),
+        toEl: document.getElementById('btn-health'),
+        duration: 700
+      });
+
+      logMsg('K8S PROBE', 'libuv', 'GET /health respondeu 200 OK em 1.8ms ✅ Instância Saudável.');
+    }
+
+    // ========================================================
+    // BOTÃO RESETAR SIMULAÇÃO
+    // ========================================================
+    function resetarSimulador() {
+      activeSimulation = null;
+      if (activeLagInterval) {
+        clearInterval(activeLagInterval);
+        activeLagInterval = null;
+      }
+
+      // Remove pacotes voadores ou presos
+      packetLayer.innerHTML = '';
+      stuckHealthPacket = null;
+      document.getElementById('tcp-buffer-badge').style.display = 'none';
+
+      // Reseta Main Thread e Loop
+      const mainCol = document.getElementById('main-thread-col');
+      const loopRing = document.getElementById('loop-spinner');
+      const stackFrames = document.getElementById('stack-frames');
+      const telLag = document.getElementById('tel-lag');
+      const telStack = document.getElementById('tel-stack');
+      const telHealth = document.getElementById('tel-health');
+      const telPool = document.getElementById('tel-pool');
+
+      mainCol.classList.remove('frozen');
+      loopRing.classList.remove('paused');
+      document.getElementById('loop-state-label').innerText = 'TICKING';
+      document.getElementById('loop-status-text').innerText = 'Rodando (60 FPS)';
+      document.getElementById('loop-status-text').style.color = 'var(--accent-purple)';
+
+      stackFrames.innerHTML = `
+        <div style="color: #64748b; font-size: 0.78rem; text-align: center; padding: 1.2rem;">
+          Call Stack ociosa. Aguardando execução síncrona...
+        </div>
+      `;
+      document.getElementById('stack-depth').innerText = '0 frames';
+
+      // Reseta Workers
+      document.querySelectorAll('.worker-slot').forEach(w => w.classList.remove('busy'));
+      document.querySelectorAll('.worker-state').forEach(s => {
+        s.className = 'worker-state idle';
+        s.innerText = 'IDLE';
+      });
+      document.querySelectorAll('.worker-progress-fill').forEach(p => p.style.width = '0%');
+      document.getElementById('comms-status').innerText = 'postMessage() (Structured Clone)';
+
+      // Reseta fases do loop
+      document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('phase-micro').classList.add('active');
+
+      // Reseta telemetria
+      telLag.className = 'telemetry-val good';
+      telLag.innerText = '0.4 ms';
+      telStack.className = 'telemetry-val good';
+      telStack.innerText = 'LIVRE (IDLE)';
+      telHealth.className = 'telemetry-val good';
+      telHealth.innerText = '200 OK (2.1ms)';
+      telPool.innerText = '3/3 Ociosos';
+
+      logMsg('RESET', 'warn', 'Simulador resetado com sucesso para o estado inicial!');
+    }
+  </script>
+</body>
+</html>
