@@ -15,7 +15,7 @@
   - Criar rota `/bloqueante` e demonstrar como ela trava requisições de saúde (`/health`).
   - Implementar worker pool com `worker_threads` na rota `/otimizada` e demonstrar `/health` respondendo instantaneamente em paralelo.
 
-- [ ] **Tarefa 4: O Experimento de Memória (Buffer vs. Streams com Backpressure)**
+- [x] **Tarefa 4: O Experimento de Memória (Buffer vs. Streams com Backpressure)**
   - Criar gerador de arquivo massivo de teste (50MB+).
   - Implementar rota de processamento via Buffer registrando o pico de memória (`process.memoryUsage().rss`).
   - Implementar rota de processamento via `stream.pipeline` e `Transform` stream, registrando o consumo estável de RAM.

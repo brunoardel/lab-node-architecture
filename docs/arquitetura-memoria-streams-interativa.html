@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infográfico Interativo: Gestão de Memória, Buffers vs. Streams & Backpressure (Node.js)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070a12;
+      --bg-surface: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-card-hover: rgba(51, 65, 85, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.35);
+
+      --color-main: #f8fafc;
+      --color-muted: #94a3b8;
+
+      --accent-blue: #38bdf8;
+      --accent-cyan: #06b6d4;
+      --accent-indigo: #818cf8;
+      --accent-purple: #c084fc;
+      --accent-emerald: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-rose: #fb7185;
+      --accent-orange: #fb923c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #0c2340 0%, var(--bg-dark) 65%);
+      color: var(--color-main);
+      min-height: 100vh;
+      padding: 1.5rem;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* HEADER */
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .badge-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1rem;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-blue);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    p.subtitle {
+      color: var(--color-muted);
+      font-size: 1.05rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* TELEMETRY BAR */
+    .telemetry-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .telemetry-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 0.9rem 1.2rem;
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      transition: all 0.3s ease;
+    }
+
+    .telemetry-card:hover {
+      border-color: var(--border-glow);
+      transform: translateY(-2px);
+    }
+
+    .telemetry-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .telemetry-val {
+      font-size: 1.35rem;
+      font-weight: 800;
+      font-family: 'Fira Code', monospace;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: color 0.3s ease;
+    }
+
+    .telemetry-val.good { color: var(--accent-emerald); }
+    .telemetry-val.warn { color: var(--accent-amber); }
+    .telemetry-val.danger { color: var(--accent-rose); animation: pulseAlert 0.8s infinite; }
+
+    @keyframes pulseAlert {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.02); }
+    }
+
+    /* CONTROL PANEL */
+    .control-panel {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 1.2rem 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .control-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .controls-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--color-main);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .speed-selector {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--color-muted);
+    }
+
+    .speed-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--color-muted);
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .speed-btn.active {
+      background: var(--accent-cyan);
+      color: #04101e;
+      border-color: var(--accent-cyan);
+    }
+
+    .actions-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .btn {
+      padding: 0.65rem 1.15rem;
+      border-radius: 10px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 1px solid transparent;
+      outline: none;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-danger {
+      background: rgba(251, 113, 133, 0.15);
+      color: var(--accent-rose);
+      border-color: rgba(251, 113, 133, 0.35);
+    }
+    .btn-danger:hover {
+      background: rgba(251, 113, 133, 0.25);
+      box-shadow: 0 0 16px rgba(251, 113, 133, 0.3);
+    }
+
+    .btn-success {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--accent-emerald);
+      border-color: rgba(52, 211, 153, 0.35);
+    }
+    .btn-success:hover {
+      background: rgba(52, 211, 153, 0.25);
+      box-shadow: 0 0 16px rgba(52, 211, 153, 0.3);
+    }
+
+    .btn-amber {
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--accent-amber);
+      border-color: rgba(251, 191, 36, 0.35);
+    }
+    .btn-amber:hover {
+      background: rgba(251, 191, 36, 0.25);
+      box-shadow: 0 0 16px rgba(251, 191, 36, 0.3);
+    }
+
+    .btn-purple {
+      background: rgba(192, 132, 252, 0.15);
+      color: var(--accent-purple);
+      border-color: rgba(192, 132, 252, 0.35);
+    }
+    .btn-purple:hover {
+      background: rgba(192, 132, 252, 0.25);
+      box-shadow: 0 0 16px rgba(192, 132, 252, 0.3);
+    }
+
+    .btn-reset {
+      background: rgba(148, 163, 184, 0.15);
+      color: var(--color-muted);
+      border-color: rgba(148, 163, 184, 0.3);
+    }
+    .btn-reset:hover {
+      background: rgba(148, 163, 184, 0.25);
+      color: var(--color-main);
+    }
+
+    /* ========================================================
+       MASTER ARCHITECTURE CANVAS
+       ======================================================== */
+    .arch-process-container {
+      background: rgba(15, 23, 42, 0.65);
+      border: 2px dashed rgba(56, 189, 248, 0.35);
+      border-radius: 20px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      position: relative;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+    }
+
+    .process-tag {
+      position: absolute;
+      top: -12px;
+      left: 24px;
+      background: #0284c7;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.8rem;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    }
+
+    .arch-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.3fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 1080px) {
+      .arch-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* COLUMN 1: MEMORY ANATOMY */
+    .memory-column {
+      background: rgba(30, 58, 138, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 16px;
+      padding: 1.3rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      transition: all 0.3s ease;
+    }
+
+    .memory-column.blowup {
+      border-color: var(--accent-rose);
+      background: rgba(225, 29, 72, 0.12);
+      box-shadow: 0 0 35px rgba(244, 63, 94, 0.3);
+    }
+
+    .column-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.6rem;
+    }
+
+    .column-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .badge-scope {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-scope.blue { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-scope.green { background: rgba(52, 211, 153, 0.15); color: var(--accent-emerald); border: 1px solid rgba(52, 211, 153, 0.3); }
+    .badge-scope.red { background: rgba(251, 113, 133, 0.15); color: var(--accent-rose); border: 1px solid rgba(251, 113, 133, 0.3); }
+
+    /* RSS BAR & HEAP SECTIONS */
+    .mem-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .card-label-flex {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .gauge-container {
+      width: 100%;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 0.4rem;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      width: 10%;
+      background: var(--accent-emerald);
+      border-radius: 6px;
+      transition: width 0.4s ease, background 0.4s ease;
+    }
+
+    .gauge-fill.spike {
+      background: linear-gradient(90deg, var(--accent-amber), var(--accent-rose));
+      animation: pulseAlert 0.8s infinite;
+    }
+
+    .gauge-legend {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--color-muted);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* HEAP SPACES GRID */
+    .heap-spaces-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.8rem;
+    }
+
+    .space-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      transition: all 0.3s ease;
+    }
+
+    .space-box.active-gc {
+      border-color: var(--accent-purple);
+      box-shadow: 0 0 16px rgba(192, 132, 252, 0.3);
+    }
+
+    .space-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .space-desc {
+      font-size: 0.72rem;
+      color: var(--color-muted);
+      line-height: 1.35;
+    }
+
+    .space-indicator {
+      font-size: 0.75rem;
+      font-family: 'Fira Code', monospace;
+      font-weight: 700;
+      margin-top: 0.2rem;
+    }
+
+    /* COLUMN 2: STREAMING PIPELINE */
+    .pipeline-column {
+      background: rgba(14, 116, 144, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      border-radius: 16px;
+      padding: 1.3rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      position: relative;
+    }
+
+    .stream-pipeline-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      position: relative;
+    }
+
+    .stream-stage-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 0.9rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .stream-stage-card.flowing {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.25);
+    }
+
+    .stream-stage-card.paused {
+      border-color: var(--accent-amber);
+      background: rgba(251, 191, 36, 0.12);
+      box-shadow: 0 0 25px rgba(251, 191, 36, 0.35);
+    }
+
+    .stage-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stage-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .stage-status-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    .stage-status-badge.idle { background: rgba(148, 163, 184, 0.2); color: var(--color-muted); }
+    .stage-status-badge.streaming { background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); }
+    .stage-status-badge.paused { background: rgba(251, 191, 36, 0.25); color: var(--accent-amber); }
+    .stage-status-badge.draining { background: rgba(52, 211, 153, 0.2); color: var(--accent-emerald); }
+
+    .buffer-watermark-meter {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .meter-label {
+      font-size: 0.72rem;
+      color: var(--color-muted);
+      width: 140px;
+    }
+
+    .meter-bar-outer {
+      flex: 1;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .meter-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-cyan);
+      transition: width 0.2s linear, background 0.2s;
+    }
+
+    .meter-bar-fill.full {
+      background: var(--accent-rose);
+    }
+
+    .meter-val-text {
+      font-size: 0.72rem;
+      font-family: 'Fira Code', monospace;
+      color: var(--color-main);
+      width: 90px;
+      text-align: right;
+    }
+
+    .boundary-helper-box {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.72rem;
+      color: var(--color-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* BACKPRESSURE WARNING BANNER */
+    .backpressure-alert-banner {
+      display: none;
+      background: rgba(251, 191, 36, 0.2);
+      border: 1px solid var(--accent-amber);
+      color: #fef08a;
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      align-items: center;
+      justify-content: space-between;
+      animation: pulseAlert 1s infinite;
+    }
+
+    /* ANIMATED PACKETS LAYER */
+    #packet-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1000;
+      overflow: visible;
+    }
+
+    .flying-packet {
+      position: absolute;
+      padding: 0.4rem 0.8rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: 'Fira Code', monospace;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      z-index: 1001;
+      transform: translate(-50%, -50%);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .flying-packet.chunk-64k {
+      background: #0891b2;
+      color: #fff;
+      border: 1px solid #22d3ee;
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.8);
+    }
+
+    .flying-packet.buffer-blowup {
+      background: #dc2626;
+      color: #fff;
+      border: 1px solid #f87171;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.9);
+      animation: pulseAlert 0.5s infinite;
+    }
+
+    .flying-packet.drain-signal {
+      background: #16a34a;
+      color: #fff;
+      border: 1px solid #4ade80;
+      box-shadow: 0 0 16px rgba(74, 222, 128, 0.8);
+    }
+
+    /* KEYWORDS EXPLORER SECTION */
+    .keywords-section {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .section-desc {
+      color: var(--color-muted);
+      font-size: 0.88rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .keywords-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .kw-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--color-muted);
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .kw-pill:hover {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--color-main);
+      transform: translateY(-2px);
+    }
+
+    .kw-pill.active {
+      background: var(--accent-cyan);
+      color: #04101e;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.45);
+      font-weight: 700;
+    }
+
+    .kw-detail-card {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 1.2rem;
+      transition: all 0.3s ease;
+    }
+
+    @media (max-width: 900px) {
+      .kw-detail-card {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .kw-info h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      color: var(--accent-cyan);
+      margin-bottom: 0.3rem;
+    }
+
+    .kw-role {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--accent-indigo);
+      letter-spacing: 0.05em;
+      margin-bottom: 0.6rem;
+    }
+
+    .kw-text {
+      font-size: 0.88rem;
+      color: #cbd5e1;
+      margin-bottom: 0.6rem;
+      line-height: 1.45;
+    }
+
+    .kw-impact {
+      font-size: 0.82rem;
+      background: rgba(0, 0, 0, 0.35);
+      border-left: 3px solid var(--accent-cyan);
+      padding: 0.5rem 0.8rem;
+      border-radius: 0 6px 6px 0;
+      color: #94a3b8;
+    }
+
+    .kw-code-box {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 0.8rem;
+      overflow-x: auto;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+      color: #38bdf8;
+      line-height: 1.4;
+    }
+
+    /* TERMINAL LOGS */
+    .terminal-section {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .term-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .term-dots {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    .term-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-r { background: #ef4444; }
+    .dot-y { background: #f59e0b; }
+    .dot-g { background: #10b981; }
+
+    .term-title {
+      font-size: 0.78rem;
+      font-family: 'Fira Code', monospace;
+      color: var(--color-muted);
+    }
+
+    .term-output {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.78rem;
+      max-height: 160px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .term-line {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .term-time { color: #64748b; }
+    .term-tag { font-weight: 700; }
+    .term-tag.buffer { color: var(--accent-rose); }
+    .term-tag.stream { color: var(--accent-cyan); }
+    .term-tag.gc { color: var(--accent-purple); }
+    .term-tag.backpressure { color: var(--accent-amber); }
+    .term-msg { color: #e2e8f0; }
+
+    footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--color-muted);
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    footer a {
+      color: var(--accent-cyan);
+      text-decoration: none;
+    }
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-top">
+        <span>⚡</span> Lab de Arquitetura Node.js & TypeScript • Tarefa 4 (RF03)
+      </div>
+      <h1>Infográfico Interativo: Gestão de Memória, Buffers vs. Streams & Backpressure</h1>
+      <p class="subtitle">
+        Simulação visual comparativa da amplificação de memória no V8 ao carregar arquivos pesados (50MB+) versus o controle estável com <code>stream.pipeline</code>, chunks de 64KB e contrapressão (*Backpressure*).
+      </p>
+    </header>
+
+    <!-- TELEMETRY BAR -->
+    <div class="telemetry-bar">
+      <div class="telemetry-card">
+        <span class="telemetry-label">Memória RSS Total (RAM)</span>
+        <div class="telemetry-val good" id="tel-rss">48.2 MB</div>
+      </div>
+      <div class="telemetry-card">
+        <span class="telemetry-label">V8 Heap Usada (Objetos JS)</span>
+        <div class="telemetry-val good" id="tel-heap">28.5 MB</div>
+      </div>
+      <div class="telemetry-card">
+        <span class="telemetry-label">Delta RSS (Spike Alocado)</span>
+        <div class="telemetry-val good" id="tel-delta">+0.0 MB</div>
+      </div>
+      <div class="telemetry-card">
+        <span class="telemetry-label">Estado de Backpressure</span>
+        <div class="telemetry-val good" id="tel-bp">FLOWING (Livre)</div>
+      </div>
+      <div class="telemetry-card">
+        <span class="telemetry-label">Throughput da Pipeline</span>
+        <div class="telemetry-val good" id="tel-rate">0.0 MB/s</div>
+      </div>
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="control-panel">
+      <div class="control-header">
+        <div class="controls-title">
+          <span>🎮</span> Cenários de Simulação com Animação Física de Memória:
+        </div>
+        <div class="speed-selector">
+          <span>Velocidade da Animação:</span>
+          <button class="speed-btn active" onclick="setSpeed(1, this)">🐢 Lenta (Didática)</button>
+          <button class="speed-btn" onclick="setSpeed(0.5, this)">⚡ Média</button>
+          <button class="speed-btn" onclick="setSpeed(0.25, this)">🐇 Rápida</button>
+        </div>
+      </div>
+
+      <div class="actions-group">
+        <button class="btn btn-danger" onclick="simularBufferIngenuo()" id="btn-buffer">
+          <span>💥</span> 1. Ingestão Ingênua com Buffer (/memoria/buffer)
+        </button>
+        <button class="btn btn-success" onclick="simularStreamPipeline()" id="btn-stream">
+          <span>🌊</span> 2. Ingestão com Streams & Backpressure (/memoria/stream)
+        </button>
+        <button class="btn btn-amber" onclick="simularBackpressureLento()" id="btn-bp">
+          <span>🛑</span> 3. Forçar Backpressure (Simular Disco Lento)
+        </button>
+        <button class="btn btn-purple" onclick="simularGarbageCollection()" id="btn-gc">
+          <span>🧹</span> 4. Ciclo de Garbage Collection (Scavenge vs Mark-Sweep)
+        </button>
+        <button class="btn btn-reset" onclick="resetarSimulador()" id="btn-reset">
+          <span>🔄</span> Resetar Simulação
+        </button>
+      </div>
+    </div>
+
+    <!-- MASTER ARCHITECTURE CANVAS -->
+    <div class="arch-process-container" id="process-container">
+      <div class="process-tag">
+        📦 Processo Node.js (PID 39201) • Arquivo de Teste: 50.0 MB (304.677 registros NDJSON)
+      </div>
+
+      <!-- PACOTES VOADORES LAYER -->
+      <div id="packet-layer"></div>
+
+      <div class="arch-layout">
+        <!-- COLUNA 1: ANATOMIA DA MEMÓRIA DO PROCESSO -->
+        <div class="memory-column" id="mem-column">
+          <div class="column-header">
+            <div class="column-title">
+              <span>🧠</span> Memória do Processo (RSS & V8 Heap)
+            </div>
+            <span class="badge-scope blue" id="mem-status-badge">Estável (Linha de Base)</span>
+          </div>
+
+          <!-- RSS METER -->
+          <div class="mem-card" id="card-rss">
+            <div class="card-label-flex">
+              <span>📊 RSS (Resident Set Size - RAM Física)</span>
+              <span id="rss-text" style="color:var(--accent-cyan); font-family:'Fira Code',monospace;">48.2 MB / 1024 MB</span>
+            </div>
+            <div class="gauge-container">
+              <div class="gauge-fill" id="rss-gauge-fill" style="width: 5%;"></div>
+            </div>
+            <div class="gauge-legend">
+              <span>0 MB</span>
+              <span>512 MB (Alerta)</span>
+              <span>1024 MB (Limite Pod)</span>
+            </div>
+          </div>
+
+          <!-- V8 HEAP SPACES -->
+          <div class="mem-card" id="card-v8heap">
+            <div class="card-label-flex">
+              <span>📦 V8 Heap Spaces (Objetos JS & Garbage Collector)</span>
+              <span id="heap-text" style="color:var(--accent-indigo); font-family:'Fira Code',monospace;">28.5 MB</span>
+            </div>
+
+            <div class="heap-spaces-grid">
+              <!-- YOUNG GENERATION -->
+              <div class="space-box" id="box-young">
+                <div class="space-title" style="color:var(--accent-emerald);">
+                  <span>🌱</span> Young Gen (New Space)
+                </div>
+                <div class="space-desc">
+                  Objetos de vida efêmera (chunks de 64KB). O coletor rápido (Scavenger) limpa em &lt;1ms.
+                </div>
+                <div class="space-indicator" id="young-val" style="color:var(--accent-emerald);">
+                  1.2 MB ocupados
+                </div>
+              </div>
+
+              <!-- OLD GENERATION -->
+              <div class="space-box" id="box-old">
+                <div class="space-title" style="color:var(--accent-rose);">
+                  <span>👴</span> Old Gen (Tenured)
+                </div>
+                <div class="space-desc">
+                  Objetos persistentes. Arrays massivos do Buffer ficam retidos aqui, forçando pausas longas de GC.
+                </div>
+                <div class="space-indicator" id="old-val" style="color:var(--accent-rose);">
+                  27.3 MB ocupados
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MEMÓRIA EXTERNA & ARRAYBUFFERS -->
+          <div class="mem-card" id="card-external">
+            <div class="card-label-flex">
+              <span>💾 Memória C++ Externa & ArrayBuffers</span>
+              <span id="external-text" style="color:var(--accent-purple); font-family:'Fira Code',monospace;">3.5 MB</span>
+            </div>
+            <div style="font-size:0.75rem; color:var(--color-muted); line-height: 1.4;">
+              Onde os <code>Buffer</code> nativos do Node.js residem fora do V8 Heap. Um <code>fs.readFile(50MB)</code> aloca 50MB contíguos imediatamente aqui.
+            </div>
+          </div>
+        </div>
+
+        <!-- COLUNA 2: A ESTEIRA DE STREAMS & BACKPRESSURE -->
+        <div class="pipeline-column" id="pipeline-col">
+          <div class="column-header" style="border-color: rgba(6, 182, 212, 0.25);">
+            <div class="column-title" style="color: var(--accent-cyan);">
+              <span>🌊</span> Esteira stream.pipeline & Controle de Fluxo
+            </div>
+            <span class="badge-scope green" id="pipeline-badge">Pronta para Streaming</span>
+          </div>
+
+          <!-- ALERTA DE BACKPRESSURE -->
+          <div class="backpressure-alert-banner" id="bp-alert">
+            <span>⚠️ BACKPRESSURE ATIVO: WriteStream saturado (highWaterMark atingido). ReadStream PAUSADO!</span>
+            <span style="font-family:'Fira Code',monospace;">write() === false</span>
+          </div>
+
+          <div class="stream-pipeline-wrapper">
+            <!-- ETAPA 1: READABLE STREAM -->
+            <div class="stream-stage-card" id="stage-read">
+              <div class="stage-header">
+                <div class="stage-title">
+                  <span>📥</span> 1. Readable Stream (fs.createReadStream)
+                </div>
+                <span class="stage-status-badge idle" id="read-badge">IDLE</span>
+              </div>
+              <div class="buffer-watermark-meter">
+                <span class="meter-label">Buffer Interno (highWaterMark):</span>
+                <div class="meter-bar-outer">
+                  <div class="meter-bar-fill" id="read-meter-fill"></div>
+                </div>
+                <span class="meter-val-text" id="read-meter-val">0 / 64 KB</span>
+              </div>
+              <div style="font-size:0.72rem; color:var(--color-muted);">
+                Origem: <code>dados-espaciais-50mb.ndjson</code> • Lê em fatias discretas de 64KB sem ler o arquivo inteiro.
+              </div>
+            </div>
+
+            <!-- ETAPA 2: TRANSFORM STREAM -->
+            <div class="stream-stage-card" id="stage-transform">
+              <div class="stage-header">
+                <div class="stage-title">
+                  <span>⚙️</span> 2. Transform Stream (TransformadorEspacialStream)
+                </div>
+                <span class="stage-status-badge idle" id="transform-badge">IDLE</span>
+              </div>
+              <div class="boundary-helper-box">
+                <span>Tratamento de Borda de Chunk (Chunk Boundaries):</span>
+                <span style="color:var(--accent-cyan); font-family:'Fira Code',monospace;" id="boundary-status">Buffer Sobra: 0 bytes</span>
+              </div>
+              <div style="font-size:0.72rem; color:var(--color-muted);">
+                Enriquecimento: parsing linha a linha, cálculo de declividade, risco geotécnico e potencial construtivo.
+              </div>
+            </div>
+
+            <!-- ETAPA 3: WRITABLE STREAM -->
+            <div class="stream-stage-card" id="stage-write">
+              <div class="stage-header">
+                <div class="stage-title">
+                  <span>💾</span> 3. Writable Stream (fs.createWriteStream)
+                </div>
+                <span class="stage-status-badge idle" id="write-badge">IDLE</span>
+              </div>
+              <div class="buffer-watermark-meter">
+                <span class="meter-label">Buffer de Escrita (highWaterMark):</span>
+                <div class="meter-bar-outer">
+                  <div class="meter-bar-fill" id="write-meter-fill"></div>
+                </div>
+                <span class="meter-val-text" id="write-meter-val">0 / 64 KB</span>
+              </div>
+              <div style="font-size:0.72rem; color:var(--color-muted); display:flex; justify-content:space-between;">
+                <span>Destino: <code>saida-stream.ndjson</code></span>
+                <span style="color:var(--accent-emerald);" id="drain-status">Evento 'drain': Pronto</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KEYWORDS EXPLORER -->
+    <div class="keywords-section">
+      <div class="section-title">
+        <span>📖</span> Explorador Interativo das Palavras-Chave de Memória & Streams
+      </div>
+      <p class="section-desc">
+        Clique em qualquer conceito abaixo para inspecionar sua função arquitetural, entender o impacto em produção e destacar os nós correspondentes no canvas:
+      </p>
+
+      <div class="keywords-pills" id="keywords-container"></div>
+      <div class="kw-detail-card" id="keyword-detail"></div>
+    </div>
+
+    <!-- LIVE TERMINAL -->
+    <div class="terminal-section">
+      <div class="term-header">
+        <div class="term-dots">
+          <div class="term-dot dot-r"></div>
+          <div class="term-dot dot-y"></div>
+          <div class="term-dot dot-g"></div>
+        </div>
+        <div class="term-title">Console de Telemetria de Memória em Tempo Real</div>
+        <button class="btn btn-reset" style="padding: 0.2rem 0.6rem; font-size: 0.72rem;" onclick="limparLogs()">
+          Limpar
+        </button>
+      </div>
+      <div class="term-output" id="term-logs"></div>
+    </div>
+
+    <footer>
+      Laboratório de Arquitetura de Software — Projeto <code>lab-node-architecture</code> •
+      <a href="EXPERIMENTO_MEMORIA_STREAMS.md">Voltar para o Guia do Experimento de Memória (Markdown)</a>
+    </footer>
+  </div>
+
+  <script>
+    // ========================================================
+    // VELOCIDADE GLOBAL DA SIMULAÇÃO
+    // ========================================================
+    let speedFactor = 1.0;
+
+    function setSpeed(factor, btn) {
+      speedFactor = factor;
+      document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      logMsg('CONFIG', 'stream', `Velocidade ajustada para: ${factor === 1 ? 'Lenta (Didática)' : factor === 0.5 ? 'Média' : 'Rápida'}`);
+    }
+
+    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms * speedFactor));
+
+    // ========================================================
+    // LOGGING SYSTEM
+    // ========================================================
+    const termLogs = document.getElementById('term-logs');
+
+    function logMsg(tag, category, msg) {
+      const now = new Date().toLocaleTimeString('pt-BR');
+      const line = document.createElement('div');
+      line.className = 'term-line';
+      line.innerHTML = `
+        <span class="term-time">[${now}]</span>
+        <span class="term-tag ${category}">[${tag}]</span>
+        <span class="term-msg">${msg}</span>
+      `;
+      termLogs.appendChild(line);
+      termLogs.scrollTop = termLogs.scrollHeight;
+    }
+
+    function limparLogs() {
+      termLogs.innerHTML = '';
+      logMsg('SYSTEM', 'stream', 'Logs limpos.');
+    }
+
+    // ========================================================
+    // BASE DE DADOS DAS PALAVRAS-CHAVE
+    // ========================================================
+    const KEYWORDS = [
+      {
+        id: "buffer",
+        name: "Buffer",
+        highlightId: "card-external",
+        role: "Manipulação de Dados Binários Brutos",
+        summary: "Estrutura nativa do Node.js alocada em memória C++ externa (ArrayBuffer) fora da Heap do V8. Ao ler um arquivo inteiro com fs.readFile, um único bloco contíguo de 50MB é alocado de imediato.",
+        impacto: "Se múltiplos clientes requisitarem arquivos pesados via Buffer, a memória física (RSS) da máquina atinge o teto do container em segundos.",
+        code: `// Cenário Inseguro: aloca 50MB brutos de uma vez\nconst buffer = await fs.promises.readFile('dados-50mb.ndjson');\nconsole.log(buffer.length); // 52.428.800 bytes em RAM`
+      },
+      {
+        id: "streams",
+        name: "Streams",
+        highlightId: "pipeline-col",
+        role: "Processamento Contínuo em Pedaços",
+        summary: "Abstração nativa para processamento de fluxos contínuos de dados em pequenos pedaços (chunks), sem a necessidade de manter o arquivo completo na memória RAM.",
+        impacto: "Permite que uma API com 256MB de RAM processe arquivos de 50GB com consumo de memória estável e constante na casa de dezenas de megabytes.",
+        code: `import { pipeline } from 'node:stream/promises';\n// Processamento contínuo: nunca satura a memória!\nawait pipeline(readStream, transformStream, writeStream);`
+      },
+      {
+        id: "readable-stream",
+        name: "Readable Stream",
+        highlightId: "stage-read",
+        role: "Emissor de Chunks da Origem",
+        summary: "Stream de leitura (ex: fs.createReadStream) que fatias de dados sequenciais do disco em blocos de até 64KB e entrega para o próximo elo da esteira.",
+        impacto: "Respeita o ritmo do consumidor. Se o destino estiver ocupado, o Readable entra em pausa automaticamente (backpressure).",
+        code: `const readStream = fs.createReadStream('dados.ndjson', {\n  highWaterMark: 64 * 1024 // Chunks de 64KB\n});`
+      },
+      {
+        id: "writable-stream",
+        name: "Writable Stream",
+        highlightId: "stage-write",
+        role: "Receptor e Persistência de Dados",
+        summary: "Stream de escrita de destino (ex: fs.createWriteStream) que grava gradualmente os chunks no disco ou socket de rede conforme a capacidade de I/O do sistema.",
+        impacto: "Quando o buffer de escrita atinge o limite do highWaterMark, stream.write() retorna false, sinalizando para o produtor aguardar.",
+        code: `const writeStream = fs.createWriteStream('saida.ndjson');\nif (!writeStream.write(chunk)) {\n  // Buffer cheio! Aguarde evento drain\n  await once(writeStream, 'drain');\n}`
+      },
+      {
+        id: "transform-stream",
+        name: "Transform Stream",
+        highlightId: "stage-transform",
+        role: "Processamento e Enriquecimento em Trânsito",
+        summary: "Stream duplex que consome chunks de entrada, processa linha a linha, executa cálculos e regras de negócio e empurra os dados prontos para a saída.",
+        impacto: "Permite transformar dados sob demanda sem acumular estados intermediários em arrays massivos na Heap.",
+        code: `class MeuTransform extends Transform {\n  _transform(chunk, enc, cb) {\n    this.push(processar(chunk));\n    cb();\n  }\n}`
+      },
+      {
+        id: "high-water-mark",
+        name: "highWaterMark (64KB)",
+        highlightId: "stage-read",
+        role: "Teto de Amortecimento de Buffer",
+        summary: "Limite máximo em bytes que o buffer interno de uma stream mantém em trânsito antes de frear a leitura. O padrão clássico de 64KB é o sweet spot entre poucas syscalls e mínimo uso de RAM.",
+        impacto: "Se configurado alto demais (ex: 50MB), vira quase um Buffer disfarçado; se baixo demais (ex: 256 bytes), o overhead de syscalls derruba o throughput.",
+        code: `// Sweet spot arquitetural: 64 KB\nconst stream = fs.createReadStream(caminho, { highWaterMark: 64 * 1024 });`
+      },
+      {
+        id: "backpressure",
+        name: "Backpressure (Contrapressão)",
+        highlightId: "bp-alert",
+        role: "Controle de Fluxo e Auto-Regulação",
+        summary: "Mecanismo que impede um leitor rápido de afogar um escritor lento na memória RAM. Se o disco saturar, a leitura do arquivo é pausada até que os dados sejam descarregados.",
+        impacto: "É o que garante que seu servidor nunca caia por Out-Of-Memory (OOM) mesmo sob picos de gravação lenta ou lentidão de rede.",
+        code: `// Backpressure natural:\n// Leitura rápida -> buffer enche -> pause()\n// Disco descarrega -> evento 'drain' -> resume()`
+      },
+      {
+        id: "drain",
+        name: "Evento 'drain'",
+        highlightId: "stage-write",
+        role: "Sinal de Liberação de Fluxo",
+        summary: "Evento emitido por uma Writable Stream quando seu buffer interno esvazia após ter atingido a capacidade máxima, liberando o produtor para voltar a enviar dados.",
+        impacto: "Permite sincronizar produtor e consumidor de forma 100% orientada a eventos, sem bloqueios de thread.",
+        code: `writeStream.on('drain', () => {\n  console.log('Buffer liberado! Retomando leitura...');\n  readStream.resume();\n});`
+      },
+      {
+        id: "pipeline",
+        name: "stream.pipeline",
+        highlightId: "pipeline-col",
+        role: "Encanamento Seguro de Streams",
+        summary: "Função nativa (node:stream/promises) que conecta streams ponta a ponta, propaga backpressure e garante o fechamento de todos os descritores de arquivo em caso de erro.",
+        impacto: "Substitui o método legado stream.pipe(), que não limpava descritores de arquivo nem tratava erros adequadamente, causando vazamentos de memória silenciosos.",
+        code: `import { pipeline } from 'node:stream/promises';\n// Fecha descritores com segurança mesmo com erro!\nawait pipeline(readStream, transformStream, writeStream);`
+      },
+      {
+        id: "rss",
+        name: "RSS (Resident Set Size)",
+        highlightId: "card-rss",
+        role: "Consumo Real de Memória Física",
+        summary: "A quantidade total de memória RAM física do computador ocupada pelo processo Node.js. Inclui a Heap do V8, os Buffers externos em C++ e a pilha de execução.",
+        impacto: "É a métrica monitorada pelo Kubernetes e Docker. Se o RSS ultrapassar o memory limit do pod, o container é aniquilado pelo OOMKilled.",
+        code: `const mem = process.memoryUsage();\nconsole.log(\`RSS real do processo: \${(mem.rss / 1024 / 1024).toFixed(1)} MB\`);`
+      },
+      {
+        id: "v8-heap",
+        name: "V8 Heap (HeapUsed)",
+        highlightId: "card-v8heap",
+        role: "Espaço de Objetos JavaScript",
+        summary: "Área de memória gerenciada pelo motor V8 onde residem os objetos, arrays, strings e closures. Possui teto configurado de ~1.4GB a 2.0GB em sistemas 64-bit.",
+        impacto: "Criar centenas de milhares de pequenos objetos na memória satura a Heap e dispara pausas pesadas do Garbage Collector.",
+        code: `// HeapUsed: memória de objetos ativos no JS\nconst heapMb = process.memoryUsage().heapUsed / 1024 / 1024;\nconsole.log(\`Heap usada: \${heapMb.toFixed(1)} MB\`);`
+      },
+      {
+        id: "young-gen",
+        name: "Young Generation (Scavenge)",
+        highlightId: "box-young",
+        role: "Berçário de Objetos Rápidos",
+        summary: "Região da Heap onde todo novo objeto JavaScript nasce. Na abordagem de Streams, os chunks são processados e reciclados aqui pelo Scavenger em menos de 1 milissegundo.",
+        impacto: "Como os objetos não sobrevivem por muito tempo, a memória é liberada na hora sem acumular sujeira para a Old Generation.",
+        code: `// Chunks em streaming nascem e morrem na Young Gen:\n// Coleta instantânea sem pausas perceptíveis no Event Loop!`
+      },
+      {
+        id: "old-gen",
+        name: "Old Generation (Mark-Sweep)",
+        highlightId: "box-old",
+        role: "Depósito de Longa Duração",
+        summary: "Região para onde são promovidos os objetos que sobrevivem a múltiplos ciclos do GC. Grandes arrays de linhas criados pelo Buffer (.split) se acumulam aqui.",
+        impacto: "A coleta na Old Generation (Mark-Sweep-Compact) é cara e pode congelar a execução do JavaScript por dezenas ou centenas de milissegundos.",
+        code: `// O perigo do Buffer: centenas de milhares de linhas\n// são promovidas para a Old Gen, gerando GC Pauses severos!`
+      },
+      {
+        id: "gc",
+        name: "Garbage Collection (GC)",
+        highlightId: "box-young",
+        role: "Reciclador Automático de Memória",
+        summary: "Motor do V8 que identifica quais objetos não possuem mais referências ativas e devolve o espaço de memória para o runtime.",
+        impacto: "Pressão contínua de memória obriga o GC a rodar em ciclos agressivos, aumentando o consumo de CPU e degradando a latência da API.",
+        code: `// O Node.js roda GC automaticamente.\n// Chunks de 64KB aliviam o GC, enquanto Buffers de 50MB o sobrecarregam.`
+      },
+      {
+        id: "amplificacao",
+        name: "Amplificação de Memória",
+        highlightId: "card-rss",
+        role: "O Efeito Multiplicador do Buffer",
+        summary: "Fenômeno onde um arquivo de 50MB no disco gera um consumo de mais de 500MB de RAM: Buffer (50MB) + String (50MB) + Array de 300k strings + 300k objetos JS + metadados de protótipo V8.",
+        impacto: "Multiplica o footprint de memória em 5x a 10x, transformando um arquivo moderado em uma ameaça de parada total.",
+        code: `// 50MB de arquivo no disco:\n// -> 50MB Buffer + 50MB String + 300k Objects\n// -> Pico real medido no lab: +567.51 MB RSS!`
+      },
+      {
+        id: "oom",
+        name: "OOM (Out Of Memory Crash)",
+        highlightId: "mem-column",
+        role: "Morte Prematura do Processo",
+        summary: "Falha catastrófica onde o processo Node.js é abortado pelo V8 (JavaScript heap out of memory) ou pelo kernel do Linux (SIGKILL / OOMKilled) por falta de memória.",
+        impacto: "Derruba requisições de outros usuários em voo e gera indisponibilidade imediata no serviço.",
+        code: `FATAL ERROR: Ineffective mark-compacts near heap limit\nAllocation failed - JavaScript heap out of memory`
+      },
+      {
+        id: "ndjson",
+        name: "NDJSON (Newline Delimited JSON)",
+        highlightId: "stage-transform",
+        role: "Formato Nativo para Streaming",
+        summary: "Formato de arquivo onde cada linha é um JSON completo separado por \\n. É o padrão da indústria para Big Data e dados geoespaciais.",
+        impacto: "Diferente de um array JSON tradicional [{}, {}], o NDJSON permite parsing e validação registro a registro sem carregar o documento inteiro na memória.",
+        code: `{"id":"GEO-001","lat":-23.55,"lng":-46.63}\n{"id":"GEO-002","lat":-23.56,"lng":-46.64}`
+      },
+      {
+        id: "chunk-boundary",
+        name: "Chunk Boundary Handling",
+        highlightId: "stage-transform",
+        role: "Manuseio de Linhas Fracionadas",
+        summary: "Técnica em Transform Streams que armazena a sobra incompleta de uma linha cortada entre a borda de dois chunks de 64KB e a reconstitui no chunk seguinte.",
+        impacto: "Garante que o JSON.parse receba sempre uma linha perfeitamente íntegra, evitando erros de SyntaxError durante o streaming contínuo.",
+        code: `// Reconstituição de linha entre chunks:\nconst str = bufferResidual + chunk.toString();\nconst linhas = str.split('\\n');\nbufferResidual = linhas.pop() ?? ''; // guarda sobra!`
+      }
+    ];
+
+    // ========================================================
+    // MOTOR DE PACOTES VOADORES
+    // ========================================================
+    const packetLayer = document.getElementById('packet-layer');
+    const processContainer = document.getElementById('process-container');
+
+    function animatePacket({ text, colorClass = 'chunk-64k', fromEl, toEl, duration = 1200, onComplete }) {
+      return new Promise(resolve => {
+        const fromRect = fromEl.getBoundingClientRect();
+        const toRect = toEl.getBoundingClientRect();
+        const containerRect = processContainer.getBoundingClientRect();
+
+        const startX = fromRect.left + fromRect.width / 2 - containerRect.left;
+        const startY = fromRect.top + fromRect.height / 2 - containerRect.top;
+        const endX = toRect.left + toRect.width / 2 - containerRect.left;
+        const endY = toRect.top + toRect.height / 2 - containerRect.top;
+
+        const packet = document.createElement('div');
+        packet.className = `flying-packet ${colorClass}`;
+        packet.innerHTML = text;
+        packet.style.left = `${startX}px`;
+        packet.style.top = `${startY}px`;
+        packetLayer.appendChild(packet);
+
+        const realDuration = duration * speedFactor;
+        const midY = Math.min(startY, endY) - 25;
+        const midX = (startX + endX) / 2;
+
+        const anim = packet.animate([
+          { transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0, left: `${startX}px`, top: `${startY}px` },
+          { transform: 'translate(-50%, -50%) scale(1.1)', opacity: 1, left: `${midX}px`, top: `${midY}px`, offset: 0.5 },
+          { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, left: `${endX}px`, top: `${endY}px` }
+        ], {
+          duration: realDuration,
+          easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+          fill: 'forwards'
+        });
+
+        anim.onfinish = () => {
+          packet.remove();
+          if (onComplete) onComplete();
+          resolve();
+        };
+      });
+    }
+
+    // ========================================================
+    // TELEMETRIA E ATUALIZAÇÃO DE INTERFACE
+    // ========================================================
+    const elRss = document.getElementById('tel-rss');
+    const elHeap = document.getElementById('tel-heap');
+    const elDelta = document.getElementById('tel-delta');
+    const elBp = document.getElementById('tel-bp');
+    const elRate = document.getElementById('tel-rate');
+
+    const rssGaugeFill = document.getElementById('rss-gauge-fill');
+    const rssText = document.getElementById('rss-text');
+    const heapText = document.getElementById('heap-text');
+    const youngVal = document.getElementById('young-val');
+    const oldVal = document.getElementById('old-val');
+    const externalText = document.getElementById('external-text');
+
+    const memColumn = document.getElementById('mem-column');
+    const memStatusBadge = document.getElementById('mem-status-badge');
+    const bpAlert = document.getElementById('bp-alert');
+
+    function updateTelemetry({ rss, heap, delta, bp = 'FLOWING', rate = 0 }) {
+      elRss.textContent = `${rss.toFixed(1)} MB`;
+      elHeap.textContent = `${heap.toFixed(1)} MB`;
+      elDelta.textContent = `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} MB`;
+      elRate.textContent = `${rate.toFixed(1)} MB/s`;
+
+      rssText.textContent = `${rss.toFixed(1)} MB / 1024 MB`;
+      heapText.textContent = `${heap.toFixed(1)} MB`;
+
+      const pct = Math.min(100, Math.max(5, (rss / 1024) * 100));
+      rssGaugeFill.style.width = `${pct}%`;
+
+      if (rss > 500) {
+        elRss.className = 'telemetry-val danger';
+        elDelta.className = 'telemetry-val danger';
+        rssGaugeFill.className = 'gauge-fill spike';
+        memColumn.className = 'memory-column blowup';
+        memStatusBadge.className = 'badge-scope red';
+        memStatusBadge.textContent = 'AMPLIFICAÇÃO / RISCO OOM';
+      } else if (rss > 150) {
+        elRss.className = 'telemetry-val warn';
+        elDelta.className = 'telemetry-val warn';
+        rssGaugeFill.className = 'gauge-fill';
+        memColumn.className = 'memory-column';
+        memStatusBadge.className = 'badge-scope blue';
+        memStatusBadge.textContent = 'Alocação Moderada';
+      } else {
+        elRss.className = 'telemetry-val good';
+        elDelta.className = 'telemetry-val good';
+        rssGaugeFill.className = 'gauge-fill';
+        memColumn.className = 'memory-column';
+        memStatusBadge.className = 'badge-scope blue';
+        memStatusBadge.textContent = 'Estável (Controlado)';
+      }
+
+      elBp.textContent = bp;
+      if (bp.includes('PAUSADO')) {
+        elBp.className = 'telemetry-val warn';
+      } else if (bp.includes('DRENANDO')) {
+        elBp.className = 'telemetry-val good';
+      } else {
+        elBp.className = 'telemetry-val good';
+      }
+    }
+
+    // ========================================================
+    // SIMULAÇÃO 1: CENÁRIO A (BUFFER INGÊNUO)
+    // ========================================================
+    async function simularBufferIngenuo() {
+      desabilitarBotoes(true);
+      logMsg('BUFFER', 'buffer', 'Disparando requisição POST /memoria/buffer...');
+      logMsg('BUFFER', 'buffer', 'Iniciando fs.promises.readFile("dados-50mb.ndjson")...');
+
+      // 1. Aloca buffer gigante de 50MB na memória externa
+      await animatePacket({
+        text: '💥 50 MB Raw Buffer',
+        colorClass: 'buffer-blowup',
+        fromEl: document.getElementById('pipeline-col'),
+        toEl: document.getElementById('card-external'),
+        duration: 1200
+      });
+
+      externalText.textContent = '53.5 MB (+50MB Buffer)';
+      updateTelemetry({ rss: 98.2, heap: 28.5, delta: 50.0, rate: 45.0 });
+      logMsg('BUFFER', 'buffer', '50 MB alocados em ArrayBuffer contíguo na memória externa!');
+      await wait(600);
+
+      // 2. Converte para UTF-8 string na Heap da V8
+      logMsg('BUFFER', 'buffer', 'Executando buffer.toString("utf-8") -> Alocando 50MB de String no V8 Heap...');
+      updateTelemetry({ rss: 148.5, heap: 78.5, delta: 100.3, rate: 45.0 });
+      await wait(600);
+
+      // 3. Executa .split('\n') criando array de 304.677 strings
+      logMsg('BUFFER', 'buffer', 'Executando .split("\\n") -> Criando array com 304.677 ponteiros de string...');
+      updateTelemetry({ rss: 280.0, heap: 185.0, delta: 231.8, rate: 45.0 });
+      await wait(700);
+
+      // 4. JSON.parse de cada linha para objetos individuais na Heap
+      logMsg('BUFFER', 'buffer', 'Executando JSON.parse em 304.677 objetos -> Sobrecarga na Old Generation!');
+      oldVal.textContent = '315.0 MB (304k objetos)';
+      document.getElementById('box-old').className = 'space-box active-gc';
+
+      // PICO EXPLOSIVO REAL COLETADO NO LAB
+      updateTelemetry({ rss: 855.5, heap: 351.8, delta: 567.5, rate: 44.65 });
+      logMsg('ALERTA', 'buffer', '💥 PICO MÁXIMO DE RSS: 855.52 MB atingido! Delta de +567.51 MB!');
+      logMsg('ALERTA', 'buffer', '⚠️ RISCO CRÍTICO: Sob concorrência de 2 requisições simultâneas ocorreria OOM Crash!');
+      await wait(1800);
+
+      // 5. Serializa de volta para salvar no disco
+      logMsg('BUFFER', 'buffer', 'Serializando para string de saída e gravando no disco...');
+      await animatePacket({
+        text: '💾 Gravação 50MB',
+        colorClass: 'buffer-blowup',
+        fromEl: document.getElementById('card-v8heap'),
+        toEl: document.getElementById('stage-write'),
+        duration: 1000
+      });
+
+      logMsg('SUCESSO', 'buffer', 'Requisição concluída em 1.121 ms. Memória permanece alta aguardando GC.');
+      desabilitarBotoes(false);
+    }
+
+    // ========================================================
+    // SIMULAÇÃO 2: CENÁRIO B (STREAMS & BACKPRESSURE)
+    // ========================================================
+    async function simularStreamPipeline() {
+      desabilitarBotoes(true);
+      logMsg('STREAM', 'stream', 'Disparando requisição POST /memoria/stream...');
+      logMsg('STREAM', 'stream', 'Iniciando stream.pipeline com highWaterMark: 64KB...');
+
+      const stageRead = document.getElementById('stage-read');
+      const stageTransform = document.getElementById('stage-transform');
+      const stageWrite = document.getElementById('stage-write');
+
+      const readBadge = document.getElementById('read-badge');
+      const transformBadge = document.getElementById('transform-badge');
+      const writeBadge = document.getElementById('write-badge');
+
+      const readMeter = document.getElementById('read-meter-fill');
+      const writeMeter = document.getElementById('write-meter-fill');
+      const readMeterVal = document.getElementById('read-meter-val');
+      const writeMeterVal = document.getElementById('write-meter-val');
+
+      stageRead.className = 'stream-stage-card flowing';
+      stageTransform.className = 'stream-stage-card flowing';
+      stageWrite.className = 'stream-stage-card flowing';
+
+      readBadge.className = 'stage-status-badge streaming';
+      readBadge.textContent = 'STREAMING';
+      transformBadge.className = 'stage-status-badge streaming';
+      transformBadge.textContent = 'PARSING';
+      writeBadge.className = 'stage-status-badge streaming';
+      writeBadge.textContent = 'WRITING';
+
+      // Simula 4 iterações de chunks contínuos
+      for (let i = 1; i <= 4; i++) {
+        logMsg('CHUNK', 'stream', `Processando Chunk #${i} de 64 KB (${i * 390} registros)...`);
+
+        readMeter.style.width = '100%';
+        readMeterVal.textContent = '64 / 64 KB';
+
+        await animatePacket({
+          text: `📦 Chunk #${i} (64KB)`,
+          colorClass: 'chunk-64k',
+          fromEl: stageRead,
+          toEl: stageTransform,
+          duration: 700
+        });
+
+        document.getElementById('boundary-status').textContent = `Buffer Sobra: ${i * 42} bytes preservados`;
+        youngVal.textContent = `${(1.5 + i * 0.4).toFixed(1)} MB (Scavenge ativo)`;
+        document.getElementById('box-young').className = 'space-box active-gc';
+
+        await animatePacket({
+          text: `✨ Transformado #${i}`,
+          colorClass: 'chunk-64k',
+          fromEl: stageTransform,
+          toEl: stageWrite,
+          duration: 700
+        });
+
+        writeMeter.style.width = '60%';
+        writeMeterVal.textContent = '38 / 64 KB';
+
+        // Telemetria se mantém estritamente horizontal e constante!
+        updateTelemetry({
+          rss: 62.3,
+          heap: 34.1,
+          delta: 14.07,
+          bp: 'FLOWING',
+          rate: 21.14
+        });
+
+        await wait(350);
+        readMeter.style.width = '20%';
+        readMeterVal.textContent = '12 / 64 KB';
+        writeMeter.style.width = '10%';
+        writeMeterVal.textContent = '6 / 64 KB';
+      }
+
+      readMeter.style.width = '0%';
+      readMeterVal.textContent = '0 / 64 KB';
+      writeMeter.style.width = '0%';
+      writeMeterVal.textContent = '0 / 64 KB';
+
+      stageRead.className = 'stream-stage-card';
+      stageTransform.className = 'stream-stage-card';
+      stageWrite.className = 'stream-stage-card';
+
+      readBadge.className = 'stage-status-badge idle';
+      readBadge.textContent = 'FINISHED';
+      transformBadge.className = 'stage-status-badge idle';
+      transformBadge.textContent = 'FINISHED';
+      writeBadge.className = 'stage-status-badge idle';
+      writeBadge.textContent = 'DRAINED';
+
+      logMsg('SUCESSO', 'stream', '🛡️ Stream finalizada com sucesso! Pico RSS delta foi de apenas +14.07 MB!');
+      logMsg('SUCESSO', 'stream', 'Young Generation coletou todos os objetos intermediários sem tocar na Old Gen.');
+      desabilitarBotoes(false);
+    }
+
+    // ========================================================
+    // SIMULAÇÃO 3: FORÇAR BACKPRESSURE (DISCO LENTO)
+    // ========================================================
+    async function simularBackpressureLento() {
+      desabilitarBotoes(true);
+      logMsg('BACKPRESSURE', 'backpressure', 'Simulando cenário de I/O lento no disco de destino...');
+
+      const stageRead = document.getElementById('stage-read');
+      const stageWrite = document.getElementById('stage-write');
+      const readBadge = document.getElementById('read-badge');
+      const writeBadge = document.getElementById('write-badge');
+      const readMeter = document.getElementById('read-meter-fill');
+      const writeMeter = document.getElementById('write-meter-fill');
+      const writeMeterVal = document.getElementById('write-meter-val');
+
+      // Enche o buffer do WriteStream
+      writeMeter.style.width = '100%';
+      writeMeterVal.textContent = '64 / 64 KB (CHEIO)';
+      writeMeter.className = 'meter-bar-fill full';
+      stageWrite.className = 'stream-stage-card paused';
+      writeBadge.className = 'stage-status-badge paused';
+      writeBadge.textContent = 'BUFFER FULL';
+
+      bpAlert.style.display = 'flex';
+      logMsg('BACKPRESSURE', 'backpressure', 'writeStream.write() retornou FALSE! Buffer atingiu 64KB.');
+
+      // Pausa o ReadStream
+      stageRead.className = 'stream-stage-card paused';
+      readBadge.className = 'stage-status-badge paused';
+      readBadge.textContent = 'PAUSED';
+      readMeter.style.width = '100%';
+      updateTelemetry({ rss: 64.0, heap: 35.0, delta: 15.8, bp: 'PAUSADO (BACKPRESSURE!)', rate: 0.0 });
+      logMsg('BACKPRESSURE', 'backpressure', 'ReadStream colocado em pause(). Leitura do disco congelada para proteger a RAM!');
+      await wait(1800);
+
+      // Disco grava e esvazia o buffer -> Dispara 'drain'
+      logMsg('DRAIN', 'stream', 'Disco persistiu os 64KB pendentes. Esvaziando buffer de escrita...');
+      writeMeter.style.width = '0%';
+      writeMeterVal.textContent = '0 / 64 KB';
+      writeMeter.className = 'meter-bar-fill';
+      writeBadge.className = 'stage-status-badge draining';
+      writeBadge.textContent = 'DRAINED';
+
+      await animatePacket({
+        text: '⚡ Evento drain',
+        colorClass: 'drain-signal',
+        fromEl: stageWrite,
+        toEl: stageRead,
+        duration: 900
+      });
+
+      bpAlert.style.display = 'none';
+      logMsg('DRAIN', 'stream', 'Evento "drain" disparado! ReadStream.resume() chamado com sucesso!');
+      readBadge.className = 'stage-status-badge streaming';
+      readBadge.textContent = 'RESUMED';
+      stageRead.className = 'stream-stage-card flowing';
+      updateTelemetry({ rss: 62.0, heap: 33.0, delta: 13.8, bp: 'DRENANDO (RETOMADO)', rate: 22.0 });
+
+      await wait(1000);
+      resetarSimuladorVisual();
+      desabilitarBotoes(false);
+    }
+
+    // ========================================================
+    // SIMULAÇÃO 4: GARBAGE COLLECTION
+    // ========================================================
+    async function simularGarbageCollection() {
+      desabilitarBotoes(true);
+      logMsg('GC', 'gc', 'Iniciando ciclo demonstrativo do Garbage Collector...');
+
+      // 1. Coleta Young Generation (Scavenge)
+      document.getElementById('box-young').className = 'space-box active-gc';
+      logMsg('GC', 'gc', 'Executando Minor GC (Scavenger) na Young Generation -> Duração: ~0.8 ms.');
+      youngVal.textContent = '0.3 MB ocupados (Limpo!)';
+      await wait(700);
+      document.getElementById('box-young').className = 'space-box';
+
+      // 2. Coleta Old Generation (Mark-Sweep)
+      document.getElementById('box-old').className = 'space-box active-gc';
+      logMsg('GC', 'gc', 'Executando Major GC (Mark-Sweep-Compact) na Old Generation -> Varredura completa da Heap...');
+      oldVal.textContent = '26.8 MB ocupados (Compactado)';
+      await wait(1000);
+      document.getElementById('box-old').className = 'space-box';
+
+      externalText.textContent = '3.5 MB';
+      updateTelemetry({ rss: 52.0, heap: 27.1, delta: 3.8, rate: 0.0 });
+      logMsg('GC', 'gc', 'Coleta de lixo concluída com sucesso. Memória estabilizada.');
+      desabilitarBotoes(false);
+    }
+
+    // ========================================================
+    // RESET E CONTROLES DE UI
+    // ========================================================
+    function resetarSimuladorVisual() {
+      document.getElementById('stage-read').className = 'stream-stage-card';
+      document.getElementById('stage-transform').className = 'stream-stage-card';
+      document.getElementById('stage-write').className = 'stream-stage-card';
+
+      document.getElementById('read-badge').className = 'stage-status-badge idle';
+      document.getElementById('read-badge').textContent = 'IDLE';
+      document.getElementById('transform-badge').className = 'stage-status-badge idle';
+      document.getElementById('transform-badge').textContent = 'IDLE';
+      document.getElementById('write-badge').className = 'stage-status-badge idle';
+      document.getElementById('write-badge').textContent = 'IDLE';
+
+      document.getElementById('read-meter-fill').style.width = '0%';
+      document.getElementById('read-meter-val').textContent = '0 / 64 KB';
+      document.getElementById('write-meter-fill').style.width = '0%';
+      document.getElementById('write-meter-val').textContent = '0 / 64 KB';
+
+      document.getElementById('boundary-status').textContent = 'Buffer Sobra: 0 bytes';
+      bpAlert.style.display = 'none';
+    }
+
+    function resetarSimulador() {
+      resetarSimuladorVisual();
+      externalText.textContent = '3.5 MB';
+      youngVal.textContent = '1.2 MB ocupados';
+      oldVal.textContent = '27.3 MB ocupados';
+      updateTelemetry({ rss: 48.2, heap: 28.5, delta: 0.0, bp: 'FLOWING (Livre)', rate: 0.0 });
+      logMsg('RESET', 'stream', 'Simulador reiniciado para o estado neutro.');
+    }
+
+    function desabilitarBotoes(desabilitar) {
+      document.querySelectorAll('.btn').forEach(btn => {
+        if (btn.id !== 'btn-reset') btn.disabled = desabilitar;
+      });
+    }
+
+    // ========================================================
+    // INICIALIZAÇÃO DO EXPLORADOR DE PALAVRAS-CHAVE
+    // ========================================================
+    const kwContainer = document.getElementById('keywords-container');
+    const kwDetail = document.getElementById('keyword-detail');
+
+    function renderKeywords() {
+      KEYWORDS.forEach((kw, idx) => {
+        const pill = document.createElement('button');
+        pill.className = `kw-pill ${idx === 0 ? 'active' : ''}`;
+        pill.innerHTML = `<span>🔹</span> ${kw.name}`;
+        pill.onclick = () => selectKeyword(kw, pill);
+        kwContainer.appendChild(pill);
+      });
+
+      selectKeyword(KEYWORDS[0], kwContainer.children[0]);
+    }
+
+    function selectKeyword(kw, pillEl) {
+      document.querySelectorAll('.kw-pill').forEach(p => p.classList.remove('active'));
+      pillEl.classList.add('active');
+
+      kwDetail.innerHTML = `
+        <div class="kw-info">
+          <h3>${kw.name}</h3>
+          <div class="kw-role">${kw.role}</div>
+          <p class="kw-text">${kw.summary}</p>
+          <div class="kw-impact"><strong>Impacto em Produção:</strong> ${kw.impacto}</div>
+        </div>
+        <div class="kw-code-box">
+          <pre><code>${kw.code}</code></pre>
+        </div>
+      `;
+
+      // Destaca elemento no canvas
+      document.querySelectorAll('.mem-card, .stream-stage-card, .space-box, .memory-column, .pipeline-column').forEach(el => {
+        el.style.outline = 'none';
+      });
+
+      if (kw.highlightId) {
+        const target = document.getElementById(kw.highlightId);
+        if (target) {
+          target.style.outline = '2px solid var(--accent-cyan)';
+          target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          setTimeout(() => {
+            target.style.outline = 'none';
+          }, 2500);
+        }
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderKeywords();
+      logMsg('SISTEMA', 'stream', 'Infográfico interativo de gestão de memória e streams pronto.');
+    });
+  </script>
+</body>
+</html>
