@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "demo:event-loop": "tsx scripts/demo-event-loop.ts"
+    "demo:event-loop": "tsx scripts/demo-event-loop.ts",
+    "demo:memoria": "tsx scripts/demo-memoria.ts",
+    "generate:file": "tsx scripts/generate-massive-file.ts"
   },
   "keywords": [
     "nodejs",

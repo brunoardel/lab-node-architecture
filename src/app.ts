@@ -1,6 +1,7 @@
 import Fastify, { FastifyInstance, FastifyServerOptions } from 'fastify';
 import { potencialConstrutivoRoutes } from './routes/potencial-construtivo.routes.js';
 import { concorrenciaRoutes } from './routes/concorrencia.routes.js';
+import { memoriaRoutes } from './routes/memoria.routes.js';
 import { WorkerPool } from './workers/worker-pool.js';
 
 export interface BuildAppOptions extends FastifyServerOptions {
@@ -31,6 +32,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   // Rotas do Experimento do Event Loop (Tarefa 3)
   app.register(concorrenciaRoutes, { workerPool });
+
+  // Rotas do Experimento de Memória: Buffer vs. Streams (Tarefa 4)
+  app.register(memoriaRoutes);
 
   return app;
 }

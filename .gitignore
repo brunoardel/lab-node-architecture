@@ -6,3 +6,5 @@ coverage/
 .env.*
 !.env.example
 tmp/
+data/
+*.ndjson
