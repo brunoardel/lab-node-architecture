@@ -231,6 +231,13 @@ export class WorkerPool {
     const terminationPromises = this.workers.map((worker) => worker.terminate());
     await Promise.all(terminationPromises);
   }
+
+  /**
+   * Alias para destroy(), compatível com interfaces padrão de encerramento de workers.
+   */
+  public async terminate(): Promise<void> {
+    return this.destroy();
+  }
 }
 
 // Instância singleton padrão do pool para reutilização nas rotas da aplicação

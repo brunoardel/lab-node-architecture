@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit",
     "demo:event-loop": "tsx scripts/demo-event-loop.ts",
     "demo:memoria": "tsx scripts/demo-memoria.ts",
+    "demo:observabilidade": "tsx scripts/demo-observabilidade.ts",
+    "demo:shutdown": "tsx scripts/demo-graceful-shutdown.ts",
     "generate:file": "tsx scripts/generate-massive-file.ts"
   },
   "keywords": [
