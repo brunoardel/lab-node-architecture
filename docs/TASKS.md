@@ -20,6 +20,6 @@
   - Implementar rota de processamento via Buffer registrando o pico de memória (`process.memoryUsage().rss`).
   - Implementar rota de processamento via `stream.pipeline` e `Transform` stream, registrando o consumo estável de RAM.
 
-- [ ] **Tarefa 5: Observabilidade com AsyncLocalStorage e Graceful Shutdown**
+- [x] **Tarefa 5: Observabilidade com AsyncLocalStorage e Graceful Shutdown**
   - Implementar middleware com `AsyncLocalStorage` para injeção e leitura de `correlationId`.
   - Implementar middleware de erro centralizado e tratamento de sinais `SIGTERM`/`SIGINT`.

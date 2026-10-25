@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laboratório Interativo: Observabilidade com AsyncLocalStorage & Graceful Shutdown (Node.js)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070a12;
+      --bg-surface: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-card-hover: rgba(51, 65, 85, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.35);
+
+      --color-main: #f8fafc;
+      --color-muted: #94a3b8;
+
+      --accent-blue: #38bdf8;
+      --accent-cyan: #06b6d4;
+      --accent-indigo: #818cf8;
+      --accent-purple: #c084fc;
+      --accent-emerald: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-rose: #fb7185;
+      --accent-orange: #fb923c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #0c2340 0%, var(--bg-dark) 65%);
+      color: var(--color-main);
+      min-height: 100vh;
+      padding: 1.5rem;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* HEADER */
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      padding-top: 1rem;
+    }
+
+    .badge-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-blue);
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.75rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff 0%, #bae6fd 60%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      color: var(--color-muted);
+      font-size: 1.15rem;
+      max-width: 850px;
+      margin: 0 auto;
+      font-weight: 400;
+    }
+
+    /* TABS */
+    .tabs-nav {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.75rem;
+    }
+
+    .tab-btn {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      color: var(--color-muted);
+      padding: 0.65rem 1.4rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tab-btn:hover {
+      background: rgba(30, 41, 59, 0.8);
+      color: var(--color-main);
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+    }
+
+    .tab-pane {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* CARDS & GRIDS */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 992px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+      h1 { font-size: 2rem; }
+    }
+
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      position: relative;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.75rem;
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    /* CONTROLS */
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: white;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+      transform: translateY(-1px);
+    }
+
+    .btn-emerald {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      color: white;
+    }
+
+    .btn-emerald:hover {
+      background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: linear-gradient(135deg, #be123c 0%, #9f1239 100%);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--color-muted);
+    }
+
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--color-main);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .input-field {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-subtle);
+      color: var(--color-main);
+      padding: 0.55rem 0.9rem;
+      border-radius: 0.5rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      outline: none;
+      flex-grow: 1;
+      min-width: 200px;
+    }
+
+    .input-field:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    /* TERMINAL & CODE DISPLAY */
+    .terminal-box {
+      background: #030712;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      max-height: 420px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .terminal-header {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .circle {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .circle-red { background: #ef4444; }
+    .circle-yellow { background: #f59e0b; }
+    .circle-green { background: #10b981; }
+
+    .log-line {
+      margin-bottom: 0.4rem;
+      word-break: break-all;
+    }
+
+    .log-tag {
+      font-weight: 700;
+      padding: 0.1rem 0.35rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      margin-right: 0.4rem;
+    }
+
+    .tag-info { background: rgba(56, 189, 248, 0.2); color: var(--accent-blue); }
+    .tag-warn { background: rgba(251, 191, 36, 0.2); color: var(--accent-amber); }
+    .tag-error { background: rgba(251, 113, 133, 0.2); color: var(--accent-rose); }
+    .tag-success { background: rgba(52, 211, 153, 0.2); color: var(--accent-emerald); }
+
+    .corr-highlight {
+      color: var(--accent-cyan);
+      font-weight: 600;
+      background: rgba(6, 182, 212, 0.15);
+      padding: 0.05rem 0.3rem;
+      border-radius: 0.25rem;
+    }
+
+    /* PIPELINE STAGES VISUALIZER */
+    .flow-pipeline {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    .flow-stage {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .flow-stage.active {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.25);
+    }
+
+    .stage-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .stage-name {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--color-main);
+      margin-bottom: 0.4rem;
+    }
+
+    .stage-badge {
+      display: inline-block;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 0.3rem;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--color-muted);
+    }
+
+    .flow-stage.active .stage-badge {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--accent-blue);
+    }
+
+    /* SHUTDOWN TIMELINE */
+    .timeline-container {
+      position: relative;
+      padding-left: 2rem;
+      margin-top: 1rem;
+    }
+
+    .timeline-container::before {
+      content: '';
+      position: absolute;
+      left: 7px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border-subtle);
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      left: -2rem;
+      top: 4px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #334155;
+      border: 2px solid #0f172a;
+      transition: all 0.3s ease;
+    }
+
+    .timeline-item.completed .timeline-dot {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 10px var(--accent-emerald);
+    }
+
+    .timeline-item.active .timeline-dot {
+      background: var(--accent-amber);
+      box-shadow: 0 0 10px var(--accent-amber);
+      animation: pulse 1s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.3); }
+    }
+
+    .timeline-title {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .timeline-desc {
+      font-size: 0.85rem;
+      color: var(--color-muted);
+    }
+
+    /* COMPARISON TABLE */
+    .comp-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .comp-table th, .comp-table td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .comp-table th {
+      background: rgba(15, 23, 42, 0.8);
+      color: var(--color-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .comp-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-top">
+        <span>⚡ Projeto 3 — Tarefa 5</span>
+        <span>•</span>
+        <span>Node.js v24 & TypeScript Strict</span>
+      </div>
+      <h1>Observabilidade & Graceful Shutdown</h1>
+      <p class="subtitle">
+        Visualizador interativo de rastreabilidade com <strong>AsyncLocalStorage</strong>, injeção de <strong>Correlation ID</strong> sem <em>prop-drilling</em>, tratamento centralizado de <strong>DomainError vs. InfraError</strong> e drenagem segura com <strong>Graceful Shutdown</strong>.
+      </p>
+    </header>
+
+    <!-- NAVEGAÇÃO DE ABAS -->
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="switchTab('tab-als')">
+        <span>🔍</span> 1. AsyncLocalStorage & Rastreamento
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-erros')">
+        <span>🛡️</span> 2. Matriz de Erros (Domain vs. Infra)
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-shutdown')">
+        <span>🛑</span> 3. Simulador de Graceful Shutdown
+      </button>
+    </div>
+
+    <!-- ABA 1: ASYNC LOCAL STORAGE -->
+    <div id="tab-als" class="tab-pane active">
+      <div class="flow-pipeline" id="pipelineFlow">
+        <div class="flow-stage" id="stage-0">
+          <div class="stage-num">Borda HTTP</div>
+          <div class="stage-name">onRequest Hook</div>
+          <span class="stage-badge">Gera/Lê CorrelationId</span>
+        </div>
+        <div class="flow-stage" id="stage-1">
+          <div class="stage-num">Camada 1</div>
+          <div class="stage-name">Controller</div>
+          <span class="stage-badge">Zod Validation & Dispatch</span>
+        </div>
+        <div class="flow-stage" id="stage-2">
+          <div class="stage-num">Camada 2</div>
+          <div class="stage-name">Service</div>
+          <span class="stage-badge">Regras de Negócio Urbanístico</span>
+        </div>
+        <div class="flow-stage" id="stage-3">
+          <div class="stage-num">Camada 3</div>
+          <div class="stage-name">Repository</div>
+          <span class="stage-badge">Persistência em BD (Sem 'req')</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>⚙️</span> Disparo de Requisição</h3>
+          </div>
+          <div class="controls-row">
+            <input type="text" id="customCorrIdInput" class="input-field" placeholder="x-correlation-id (opcional, ex: edge-uuid-999)" />
+            <button class="btn btn-outline" onclick="gerarUuidAleatorio()">Gerar UUID</button>
+          </div>
+          <div class="controls-row">
+            <button class="btn btn-primary" id="btnDispararReq" onclick="simularRequisicaoAls()">
+              <span>🚀</span> Disparar Requisição Única
+            </button>
+            <button class="btn btn-emerald" id="btnDisparar3" onclick="simular3Concorrentes()">
+              <span>⚡</span> Disparar 3 Concorrentes
+            </button>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--color-muted); line-height: 1.6; margin-top: 1rem;">
+            Observe que as camadas <strong>Service</strong> e <strong>Repository</strong> não recebem nenhum objeto <code>req</code> ou <code>requestId</code> como argumento em seus métodos. A recuperação do ID é realizada diretamente no <code>AsyncLocalStorage</code> através de <code>getCorrelationId()</code>, preservando a pureza das assinaturas de domínio.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>📑</span> Logs Estruturados da Requisição (stdout)</h3>
+            <button class="btn btn-outline" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;" onclick="limparLogsTerminal()">Limpar</button>
+          </div>
+          <div class="terminal-box" id="terminalAls">
+            <div class="terminal-header">
+              <span class="circle circle-red"></span>
+              <span class="circle circle-yellow"></span>
+              <span class="circle circle-green"></span>
+              <span style="color: #64748b; font-size: 0.75rem; margin-left: 0.5rem;">appLogger.info (JSON Stream)</span>
+            </div>
+            <div class="log-line" style="color: #64748b;">// Aguardando disparo de requisição para exibir os logs em tempo real...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA 2: MATRIZ DE ERROS -->
+    <div id="tab-erros" class="tab-pane">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>🧪</span> Simulador de Exceções na API</h3>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--color-muted); margin-bottom: 1.25rem;">
+            Selecione uma categoria de erro para testar como o <code>errorHandlerPlugin</code> intercepta a falha e formata as respostas HTTP sem vazar dados sensíveis:
+          </p>
+          <div class="controls-row" style="flex-direction: column; align-items: stretch;">
+            <button class="btn btn-outline" style="text-align: left; justify-content: flex-start;" onclick="simularErro('domain-400')">
+              <span>⚠️</span> <strong>DomainError: RegraInvalidaError (HTTP 400)</strong>
+              <span style="margin-left: auto; font-size: 0.75rem; color: var(--accent-amber);">Regra de Negócio</span>
+            </button>
+            <button class="btn btn-outline" style="text-align: left; justify-content: flex-start;" onclick="simularErro('domain-422')">
+              <span>⚠️</span> <strong>DomainError: ZoneamentoNaoSuportado (HTTP 422)</strong>
+              <span style="margin-left: auto; font-size: 0.75rem; color: var(--accent-amber);">Unprocessable</span>
+            </button>
+            <button class="btn btn-outline" style="text-align: left; justify-content: flex-start;" onclick="simularErro('infra-500')">
+              <span>🚨</span> <strong>InfraError: WorkerPoolFalhaError (HTTP 500)</strong>
+              <span style="margin-left: auto; font-size: 0.75rem; color: var(--accent-rose);">Falha Worker</span>
+            </button>
+            <button class="btn btn-outline" style="text-align: left; justify-content: flex-start;" onclick="simularErro('unexpected-500')">
+              <span>💥</span> <strong>Erro Inesperado Não Tratado (HTTP 500)</strong>
+              <span style="margin-left: auto; font-size: 0.75rem; color: var(--accent-rose);">Unhandled</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>🔍</span> Inspeção de Segurança da Resposta</h3>
+          </div>
+          <div style="margin-bottom: 0.75rem; font-size: 0.82rem; font-weight: 600; color: var(--accent-blue);">
+            1. RESPOSTA ENVIADA AO CLIENTE HTTP (Payload Sanitizado)
+          </div>
+          <div class="terminal-box" id="terminalClientError" style="max-height: 170px; margin-bottom: 1.25rem;">
+            <pre id="clientErrorJson">// Clique em um dos botões ao lado para inspecionar</pre>
+          </div>
+
+          <div style="margin-bottom: 0.75rem; font-size: 0.82rem; font-weight: 600; color: var(--accent-amber);">
+            2. LOG REGISTRADO INTERNAMENTE NO SERVIDOR (Com Stack Trace & CorrelationId)
+          </div>
+          <div class="terminal-box" id="terminalServerError" style="max-height: 170px;">
+            <pre id="serverErrorJson">// Auditoria interna preservada</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title" style="margin-bottom: 1rem;"><span>📊</span> Matriz Comparativa de Resiliência de Erros</h3>
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>Categoria</th>
+              <th>Status HTTP</th>
+              <th>Origem</th>
+              <th>Stack Trace no Cliente?</th>
+              <th>Auditoria Interna</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>ZodError</strong></td>
+              <td><span class="tag-warn">400 Bad Request</span></td>
+              <td>Validação na Borda da API</td>
+              <td><span class="tag-success">NÃO (Apenas issues)</span></td>
+              <td>Warn com URL e campos incorretos</td>
+            </tr>
+            <tr>
+              <td><strong>DomainError</strong></td>
+              <td><span class="tag-warn">400 / 404 / 409 / 422</span></td>
+              <td>Regras de Domínio Urbanístico</td>
+              <td><span class="tag-success">NÃO (Apenas detalhes de negócio)</span></td>
+              <td>Warn com correlationId ativo</td>
+            </tr>
+            <tr>
+              <td><strong>InfraError</strong></td>
+              <td><span class="tag-error">500 / 502 / 504</span></td>
+              <td>Falha de Worker, I/O ou Rede</td>
+              <td><span class="tag-success">NÃO (Mensagem sanitizada)</span></td>
+              <td>Error com stack trace integral e correlationId</td>
+            </tr>
+            <tr>
+              <td><strong>Unhandled Error</strong></td>
+              <td><span class="tag-error">500 Internal Error</span></td>
+              <td>Falha catastrófica de memória/código</td>
+              <td><span class="tag-success">NÃO (Mensagem genérica padrão)</span></td>
+              <td>Error com stack trace integral para investigação</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ABA 3: GRACEFUL SHUTDOWN -->
+    <div id="tab-shutdown" class="tab-pane">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>🎮</span> Painel de Controle do Ciclo de Vida</h3>
+          </div>
+          <div class="controls-row">
+            <button class="btn btn-primary" id="btnIniciarShutdownDemo" onclick="executarCenarioShutdown()">
+              <span>▶️</span> Executar Simulação Completa (Requisição em Voo + SIGTERM)
+            </button>
+            <button class="btn btn-outline" onclick="reiniciarShutdownDemo()">
+              <span>🔄</span> Reiniciar
+            </button>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--color-muted); line-height: 1.6; margin-top: 1rem;">
+            A simulação dispara uma requisição pesada de cálculo com duração de <strong>1.200ms</strong>. Enquanto o cálculo está em voo (em <strong>300ms</strong>), o orquestrador emite um sinal <code>SIGTERM</code>. Observe como o servidor encerra o recebimento de novas conexões, fecha conexões ociosas com <code>closeIdleConnections()</code>, mas aguarda a requisição ativa responder <code>200 OK</code> com sucesso!
+          </p>
+
+          <div style="margin-top: 1.5rem;">
+            <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem;">Estado do Servidor:</div>
+            <div id="serverStateBadge" style="display: inline-block; padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-weight: 700; font-family: 'Fira Code', monospace; background: rgba(52, 211, 153, 0.2); color: var(--accent-emerald);">
+              ONLINE (Pronto para conexões)
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>⏱️</span> Trilha do Graceful Shutdown</h3>
+          </div>
+          <div class="timeline-container">
+            <div class="timeline-item" id="tl-step-1">
+              <div class="timeline-dot"></div>
+              <div class="timeline-title">1. Disparo de Requisição em Voo (/api/calculo)</div>
+              <div class="timeline-desc">Requisição inicia processamento pesado (duração estimada: 1.2s).</div>
+            </div>
+            <div class="timeline-item" id="tl-step-2">
+              <div class="timeline-dot"></div>
+              <div class="timeline-title">2. Sinal SIGTERM Recebido</div>
+              <div class="timeline-desc">Watchdog timer iniciado (10s tolerância). Ordem de fechamento iniciada.</div>
+            </div>
+            <div class="timeline-item" id="tl-step-3">
+              <div class="timeline-dot"></div>
+              <div class="timeline-title">3. Drenagem de Conexões (Prioridade 10)</div>
+              <div class="timeline-desc">Novas conexões rejeitadas; sockets ociosos (Keep-Alive) fechados.</div>
+            </div>
+            <div class="timeline-item" id="tl-step-4">
+              <div class="timeline-dot"></div>
+              <div class="timeline-title">4. Conclusão da Requisição em Voo</div>
+              <div class="timeline-desc">Requisição responde HTTP 200 OK sem ser interrompida.</div>
+            </div>
+            <div class="timeline-item" id="tl-step-5">
+              <div class="timeline-dot"></div>
+              <div class="timeline-title">5. Finalização de Worker Pool (Prioridade 20)</div>
+              <div class="timeline-desc">Worker Threads secundárias terminadas com sucesso. Processo sai com código 0.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      event.currentTarget.classList.add('active');
+    }
+
+    function gerarUuidAleatorio() {
+      const uuid = 'trace-' + Math.random().toString(36).substring(2, 10) + '-' + Date.now().toString(36);
+      document.getElementById('customCorrIdInput').value = uuid;
+    }
+
+    function limparLogsTerminal() {
+      document.getElementById('terminalAls').innerHTML = `
+        <div class="terminal-header">
+          <span class="circle circle-red"></span>
+          <span class="circle circle-yellow"></span>
+          <span class="circle circle-green"></span>
+          <span style="color: #64748b; font-size: 0.75rem; margin-left: 0.5rem;">appLogger.info (JSON Stream)</span>
+        </div>
+        <div class="log-line" style="color: #64748b;">// Terminal limpo.</div>
+      `;
+    }
+
+    async function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function logTerminal(level, component, message, correlationId, metadata) {
+      const terminal = document.getElementById('terminalAls');
+      const time = new Date().toISOString().substring(11, 23);
+      const tagClass = level === 'info' ? 'tag-info' : level === 'warn' ? 'tag-warn' : 'tag-error';
+      
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.innerHTML = `
+        <span style="color: #64748b;">${time}</span>
+        <span class="log-tag ${tagClass}">${level.toUpperCase()}</span>
+        <span style="color: #cbd5e1; font-weight: 600;">[${component}]</span>
+        <span style="color: #94a3b8;">${message}</span>
+        <span class="corr-highlight">id:${correlationId}</span>
+        ${metadata ? `<span style="color: #64748b; font-size: 0.75rem;">${JSON.stringify(metadata)}</span>` : ''}
+      `;
+      terminal.appendChild(line);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    async function simularRequisicaoAls() {
+      const customId = document.getElementById('customCorrIdInput').value.trim() || ('corr-' + Math.random().toString(36).substring(2, 9));
+      const btn = document.getElementById('btnDispararReq');
+      btn.disabled = true;
+
+      // Reset stages
+      for (let i = 0; i < 4; i++) {
+        document.getElementById(`stage-${i}`).classList.remove('active');
+      }
+
+      // Stage 0: Borda HTTP
+      document.getElementById('stage-0').classList.add('active');
+      logTerminal('info', 'Fastify:onRequest', 'Iniciando contexto assíncrono no AsyncLocalStorage', customId, { method: 'POST', path: '/api/zoneamento/calcular' });
+      await sleep(350);
+
+      // Stage 1: Controller
+      document.getElementById('stage-1').classList.add('active');
+      logTerminal('info', 'ObservabilidadeController', 'Payload validado via schema Zod com sucesso', customId, { status: 'OK' });
+      await sleep(400);
+
+      // Stage 2: Service
+      document.getElementById('stage-2').classList.add('active');
+      logTerminal('info', 'ProjetoAuditoriaService', 'Calculando coeficientes urbanísticos e taxa de permeabilidade', customId, { camada: 'Service' });
+      await sleep(450);
+
+      // Stage 3: Repository
+      document.getElementById('stage-3').classList.add('active');
+      logTerminal('info', 'ProjetoRepository', 'Persistindo registro de projeto no banco de dados', customId, { camada: 'Repository', correlationIdAtivo: customId });
+      await sleep(350);
+
+      logTerminal('info', 'Fastify:onResponse', 'Requisição HTTP finalizada com 201 Created', customId, { statusCode: 201, durationMs: 1550 });
+      btn.disabled = false;
+    }
+
+    async function simular3Concorrentes() {
+      const btn = document.getElementById('btnDisparar3');
+      btn.disabled = true;
+      limparLogsTerminal();
+
+      const ids = ['job-alpha-01', 'job-beta-02', 'job-gamma-03'];
+
+      for (let i = 0; i < 3; i++) {
+        logTerminal('info', 'Fastify:onRequest', `Requisição Concorrente #${i+1} iniciada`, ids[i], { job: i+1 });
+      }
+
+      await sleep(250);
+      for (let i = 0; i < 3; i++) {
+        logTerminal('info', 'ProjetoAuditoriaService', `Service processando sem passar 'req'`, ids[i], { isolamento: 'OK' });
+      }
+
+      await sleep(250);
+      for (let i = 0; i < 3; i++) {
+        logTerminal('info', 'ProjetoRepository', `Repository persistindo com ID isolado no ALS`, ids[i], { persistido: true });
+      }
+
+      btn.disabled = false;
+    }
+
+    function simularErro(tipo) {
+      const clientBox = document.getElementById('clientErrorJson');
+      const serverBox = document.getElementById('serverErrorJson');
+      const fakeId = 'err-trace-' + Math.random().toString(36).substring(2, 8);
+      const timestamp = new Date().toISOString();
+
+      if (tipo === 'domain-400') {
+        clientBox.textContent = JSON.stringify({
+          statusCode: 400,
+          error: "RegraInvalidaError",
+          code: "REGRA_INVALIDA",
+          message: "Recuo frontal de 1.5m é inferior ao mínimo obrigatório (4.0m)",
+          correlationId: fakeId,
+          timestamp: timestamp,
+          detalhes: { recuoInformado: 1.5, recuoMinimo: 4.0 }
+        }, null, 2);
+
+        serverBox.textContent = JSON.stringify({
+          timestamp: timestamp,
+          level: "warn",
+          component: "App:ErrorHandler",
+          message: "Erro de domínio capturado: [REGRA_INVALIDA] Recuo frontal de 1.5m...",
+          correlationId: fakeId,
+          metadata: { recuoInformado: 1.5, recuoMinimo: 4.0 }
+        }, null, 2);
+      } else if (tipo === 'domain-422') {
+        clientBox.textContent = JSON.stringify({
+          statusCode: 422,
+          error: "ZoneamentoNaoSuportadoError",
+          code: "ZONEAMENTO_NAO_SUPORTADO",
+          message: "Zoneamento urbanístico não suportado: 'AgropecuariaExtensiva'",
+          correlationId: fakeId,
+          timestamp: timestamp
+        }, null, 2);
+
+        serverBox.textContent = JSON.stringify({
+          timestamp: timestamp,
+          level: "warn",
+          component: "App:ErrorHandler",
+          message: "Erro de domínio capturado: [ZONEAMENTO_NAO_SUPORTADO]...",
+          correlationId: fakeId
+        }, null, 2);
+      } else if (tipo === 'infra-500') {
+        clientBox.textContent = JSON.stringify({
+          statusCode: 500,
+          error: "Internal Server Error",
+          code: "WORKER_POOL_FALHA",
+          message: "Worker Thread pool falhou ao comunicar com o processo filho.",
+          correlationId: fakeId,
+          timestamp: timestamp
+          // NOTE: Zero stack trace enviado ao cliente!
+        }, null, 2);
+
+        serverBox.textContent = JSON.stringify({
+          timestamp: timestamp,
+          level: "error",
+          component: "App:ErrorHandler",
+          message: "Erro de infraestrutura capturado: [WORKER_POOL_FALHA] Worker Thread pool...",
+          correlationId: fakeId,
+          error: {
+            name: "WorkerPoolFalhaError",
+            message: "Worker Thread pool falhou...",
+            stack: "WorkerPoolFalhaError: ...\n    at WorkerPool.execute (/src/workers/worker-pool.ts:145:21)\n    at handleOtimizada (/src/routes/concorrencia.routes.ts:68:32)"
+          }
+        }, null, 2);
+      } else if (tipo === 'unexpected-500') {
+        clientBox.textContent = JSON.stringify({
+          statusCode: 500,
+          error: "Internal Server Error",
+          code: "ERRO_INTERNO_INESPERADO",
+          message: "Ocorreu um erro interno no servidor ao processar a requisição.",
+          correlationId: fakeId,
+          timestamp: timestamp
+        }, null, 2);
+
+        serverBox.textContent = JSON.stringify({
+          timestamp: timestamp,
+          level: "error",
+          component: "App:ErrorHandler",
+          message: "Erro não tratado / inesperado: Falha crítica no ponteiro nativo...",
+          correlationId: fakeId,
+          error: {
+            name: "Error",
+            message: "Falha crítica no ponteiro nativo",
+            stack: "Error: Falha crítica...\n    at /src/routes/observabilidade.routes.ts:98:11"
+          }
+        }, null, 2);
+      }
+    }
+
+    async function executarCenarioShutdown() {
+      const btn = document.getElementById('btnIniciarShutdownDemo');
+      btn.disabled = true;
+
+      const stateBadge = document.getElementById('serverStateBadge');
+      
+      // Step 1: Início da requisição em voo
+      document.getElementById('tl-step-1').className = 'timeline-item active';
+      stateBadge.textContent = 'ONLINE — Processando requisição em voo (600ms decorridos)...';
+      await sleep(600);
+      document.getElementById('tl-step-1').className = 'timeline-item completed';
+
+      // Step 2: SIGTERM recebido
+      document.getElementById('tl-step-2').className = 'timeline-item active';
+      stateBadge.textContent = 'SHUTTING_DOWN — Sinal SIGTERM interceptado!';
+      stateBadge.style.background = 'rgba(251, 191, 36, 0.2)';
+      stateBadge.style.color = 'var(--accent-amber)';
+      await sleep(500);
+      document.getElementById('tl-step-2').className = 'timeline-item completed';
+
+      // Step 3: Drenagem
+      document.getElementById('tl-step-3').className = 'timeline-item active';
+      stateBadge.textContent = 'DRAINING — Novas conexões recusadas (ECONNREFUSED).';
+      await sleep(600);
+      document.getElementById('tl-step-3').className = 'timeline-item completed';
+
+      // Step 4: Requisição em voo conclui
+      document.getElementById('tl-step-4').className = 'timeline-item active';
+      stateBadge.textContent = 'DRAINING — Requisição em voo finalizada com HTTP 200 OK!';
+      await sleep(500);
+      document.getElementById('tl-step-4').className = 'timeline-item completed';
+
+      // Step 5: Worker Pool e saída limpa
+      document.getElementById('tl-step-5').className = 'timeline-item active';
+      await sleep(600);
+      document.getElementById('tl-step-5').className = 'timeline-item completed';
+
+      stateBadge.textContent = 'OFFLINE — Graceful Shutdown finalizado (Exit Code: 0)';
+      stateBadge.style.background = 'rgba(148, 163, 184, 0.2)';
+      stateBadge.style.color = '#94a3b8';
+      btn.disabled = false;
+    }
+
+    function reiniciarShutdownDemo() {
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById(`tl-step-${i}`).className = 'timeline-item';
+      }
+      const stateBadge = document.getElementById('serverStateBadge');
+      stateBadge.textContent = 'ONLINE (Pronto para conexões)';
+      stateBadge.style.background = 'rgba(52, 211, 153, 0.2)';
+      stateBadge.style.color = 'var(--accent-emerald)';
+      document.getElementById('btnIniciarShutdownDemo').disabled = false;
+    }
+  </script>
+</body>
+</html>
